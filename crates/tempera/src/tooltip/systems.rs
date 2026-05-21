@@ -96,10 +96,19 @@ pub(crate) fn open_tooltips(
 /// Keep the popup anchored to its target each frame. Targets can move
 /// (animated layouts, scroll containers) so we recompute every frame
 /// while the popup exists. Also despawn orphans whose target is gone.
+///
+/// On the first frame the popup's `ComputedNode` reports a non-zero
+/// size we flip `Visibility::Hidden → Inherited` — that's how we hide
+/// the parked-at-target-center first frame from the user (otherwise
+/// the popup would visibly flash from the target center to its
+/// resolved side once layout measures it).
 pub(crate) fn sync_popup_positions(
     targets: Query<(&Tooltip, &ComputedNode, &UiGlobalTransform), Without<TooltipPopup>>,
     popup_size: Query<&ComputedNode, With<TooltipPopup>>,
-    mut popups: Query<(Entity, &mut TooltipPopup, &mut Node), Without<TooltipArrow>>,
+    mut popups: Query<
+        (Entity, &mut TooltipPopup, &mut Node, &mut Visibility),
+        Without<TooltipArrow>,
+    >,
     mut arrows: Query<(&ChildOf, &mut Node), (With<TooltipArrow>, Without<TooltipPopup>)>,
     window: Query<&Window, With<PrimaryWindow>>,
     mut commands: Commands,
@@ -109,7 +118,7 @@ pub(crate) fn sync_popup_positions(
     };
     let window_size = Vec2::new(window.width(), window.height());
 
-    for (popup_entity, mut marker, mut node) in &mut popups {
+    for (popup_entity, mut marker, mut node, mut visibility) in &mut popups {
         let Ok((tooltip, target_node, target_xf)) = targets.get(marker.target) else {
             // Target is gone — despawn the orphaned popup.
             commands.entity(popup_entity).try_despawn();
@@ -120,6 +129,12 @@ pub(crate) fn sync_popup_positions(
         };
         let scale = target_node.inverse_scale_factor();
         let popup_size_logical = popup_cn.size() * popup_cn.inverse_scale_factor();
+        // Bail until layout has actually measured the popup — flipping
+        // to visible with a zero-size measurement would draw at the
+        // parked target-center for one frame.
+        if popup_size_logical.x < 1.0 || popup_size_logical.y < 1.0 {
+            continue;
+        }
         let target_center = target_xf.translation * scale;
         let target_half = target_node.size() * scale * 0.5;
 
@@ -134,6 +149,10 @@ pub(crate) fn sync_popup_positions(
         node.left = Val::Px(placement.popup_min.x);
         node.top = Val::Px(placement.popup_min.y);
         marker.position = placement.resolved;
+        // Reveal — measured + positioned this frame.
+        if *visibility == Visibility::Hidden {
+            *visibility = Visibility::Inherited;
+        }
 
         // Reposition the arrow child to point at the target.
         for (child_of, mut arrow_node) in &mut arrows {
@@ -240,17 +259,21 @@ fn choose_auto(
     }
 }
 
-/// Pixel offset (left, top) of the arrow child within the popup, plus
-/// a rotation in radians for the triangle drawable. For now we just
-/// position the arrow at the popup edge; rotation is unused (we use
-/// per-direction arrow nodes in spawn).
+/// Pixel offset (left, top) of the diamond-rotated arrow child within
+/// the popup. The arrow is a square of edge `edge = ARROW_SIZE * √2`
+/// rotated 45° via `UiTransform`, so its visible corner protrudes
+/// `ARROW_SIZE` past the popup edge while the back half hides behind
+/// the popup's rounded rect. We position the **center** of the
+/// unrotated rect on the popup edge (rotation pivots around the
+/// rect's center), which means `left/top = center - edge/2`.
 fn arrow_offset(position: TooltipPosition, popup_size: Vec2) -> (f32, f32, f32) {
-    let s = super::spawn::ARROW_SIZE;
+    let edge = super::spawn::ARROW_SIZE * std::f32::consts::SQRT_2;
+    let half = edge * 0.5;
     match position {
-        TooltipPosition::Top => (popup_size.x * 0.5 - s, popup_size.y, 0.0),
-        TooltipPosition::Bottom => (popup_size.x * 0.5 - s, -s * 2.0, std::f32::consts::PI),
-        TooltipPosition::Left => (popup_size.x, popup_size.y * 0.5 - s, -std::f32::consts::FRAC_PI_2),
-        TooltipPosition::Right => (-s * 2.0, popup_size.y * 0.5 - s, std::f32::consts::FRAC_PI_2),
+        TooltipPosition::Top => (popup_size.x * 0.5 - half, popup_size.y - half, 0.0),
+        TooltipPosition::Bottom => (popup_size.x * 0.5 - half, -half, 0.0),
+        TooltipPosition::Left => (popup_size.x - half, popup_size.y * 0.5 - half, 0.0),
+        TooltipPosition::Right => (-half, popup_size.y * 0.5 - half, 0.0),
         TooltipPosition::Auto => (0.0, 0.0, 0.0),
     }
 }

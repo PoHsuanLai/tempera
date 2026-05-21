@@ -176,6 +176,15 @@ impl ToastManager {
         }
     }
 
+    /// Switch the variant of an existing toast in place. Useful when
+    /// a long-running progress toast finishes in failure and the
+    /// caller wants to swap its accent colour before it dismisses.
+    pub fn set_variant(&mut self, id: ToastId, variant: ToastVariant) {
+        if let Some(t) = self.find_mut(id) {
+            t.config.variant = variant;
+        }
+    }
+
     /// Switch from external-progress mode back to the timed countdown,
     /// resetting the timer to "now". Useful at the end of a long task
     /// to show a brief "done" message before the toast fades.

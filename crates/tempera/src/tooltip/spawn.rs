@@ -38,9 +38,10 @@ pub(crate) fn spawn_popup(
             },
             Node {
                 position_type: PositionType::Absolute,
-                // Position is corrected by `sync_popup_positions` on the
-                // next frame once ComputedNode for the popup is known;
-                // park it at the target center until then.
+                // Park off-screen until `sync_popup_positions` measures
+                // the popup's ComputedNode and writes the correct
+                // position. We stay `Visibility::Hidden` until then so
+                // the user never sees the parked frame.
                 left: Val::Px(target_center.x),
                 top: Val::Px(target_center.y),
                 padding: UiRect::axes(Val::Px(PADDING_X), Val::Px(PADDING_Y)),
@@ -54,6 +55,11 @@ pub(crate) fn spawn_popup(
                 column_gap: Val::Px(8.0),
                 ..default()
             },
+            // Spawn invisible — the sync system flips this to
+            // `Visibility::Inherited` on the first frame the position
+            // is correctly computed. Avoids a one-frame flash at the
+            // target center followed by a jump to the resolved side.
+            Visibility::Hidden,
             BackgroundColor(bg),
             GlobalZIndex(super::systems::Z_TOOLTIP),
             bevy::picking::Pickable::IGNORE,
@@ -74,21 +80,28 @@ pub(crate) fn spawn_popup(
     }
 
     if tooltip.show_arrow {
-        // bevy_ui can't rotate flat-colored Nodes (no rotation in
-        // `UiTransform`), so we render the arrow as a small square
-        // tab flush against the popup edge rather than a true
-        // diamond. To get a triangle, callers can plug in a
-        // rasterized SVG via an `ImageNode` and replace this child.
+        // True triangle: a colored square rotated 45° so its corner
+        // protrudes from the popup edge. Half the diamond is hidden
+        // behind the popup; the visible half reads as a right-angle
+        // triangle pointing at the target. The sync system places it
+        // each frame so the protruding corner aligns with the
+        // tooltip-target axis.
+        //
+        // We use the diagonal length `s = ARROW_SIZE * √2` for the
+        // square edge so the protruding half matches `ARROW_SIZE` on
+        // each axis (same visual footprint as the old flat tab).
+        let edge = ARROW_SIZE * std::f32::consts::SQRT_2;
         commands.spawn((
             TooltipArrow,
             Node {
                 position_type: PositionType::Absolute,
-                width: Val::Px(ARROW_SIZE * 2.0),
-                height: Val::Px(ARROW_SIZE * 2.0),
+                width: Val::Px(edge),
+                height: Val::Px(edge),
                 left: Val::Px(0.0),
                 top: Val::Px(0.0),
                 ..default()
             },
+            UiTransform::from_rotation(Rot2::FRAC_PI_4),
             BackgroundColor(bg),
             bevy::picking::Pickable::IGNORE,
             ChildOf(popup),
