@@ -16,7 +16,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut font: ResMu
     commands.spawn(Camera2d);
 
     let inter: Handle<Font> = asset_server.load("fonts/Inter-Regular.otf");
-    font.0 = Some(inter);
+    font.regular = Some(inter);
 
     commands.queue(|world: &mut World| {
         world.run_system_cached(spawn_grid).ok();

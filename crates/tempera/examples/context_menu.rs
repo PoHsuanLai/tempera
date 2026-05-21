@@ -23,7 +23,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut font: ResMu
     // Tempera consumers point FontHandle at whatever font fits their app —
     // here we reuse the copy that ships with dawai-theme.
     let inter: Handle<Font> = asset_server.load("fonts/Inter-Regular.otf");
-    font.0 = Some(inter.clone());
+    font.regular = Some(inter.clone());
 
     commands.spawn((
         Text::new("Right-click anywhere"),

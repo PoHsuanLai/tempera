@@ -51,21 +51,70 @@ impl Plugin for ThemePlugin {
 // Font handle
 // ---------------------------------------------------------------------------
 
-/// Font handle used for widget text. `None` falls back to Bevy's
-/// built-in default font (covers ASCII; misses ⌘ / ⌫ / arrow glyphs).
+/// Font handles used for widget text. Two slots: regular and bold.
+///
+/// `regular = None` falls back to Bevy's built-in default font
+/// (covers ASCII; misses ⌘ / ⌫ / arrow glyphs). `bold = None` falls
+/// back to `regular` (so widgets that ask for bold text on a regular-
+/// only setup just get the regular weight, which is what every
+/// existing tempera example does).
+///
+/// Bevy_text's `TextFont.weight` only takes effect on **variable**
+/// font files. To support headline-weight emphasis with regular .otf
+/// or .ttf bundles (e.g. Inter-Bold.otf), set `bold` explicitly. The
+/// [`Self::text_font_bold`] helper produces a `TextFont` with the
+/// bold handle when one is set; widgets that want bold conditionally
+/// call this instead of [`Self::text_font`].
 #[derive(Resource, Clone, Default, Debug)]
-pub struct FontHandle(pub Option<Handle<Font>>);
+pub struct FontHandle {
+    pub regular: Option<Handle<Font>>,
+    pub bold: Option<Handle<Font>>,
+}
 
 impl FontHandle {
-    /// Build a [`TextFont`] using this handle at the given size, falling
-    /// back to Bevy's default font if no handle is set.
+    /// New `FontHandle` with only the regular slot filled.
+    #[must_use]
+    pub fn regular(handle: Handle<Font>) -> Self {
+        Self {
+            regular: Some(handle),
+            bold: None,
+        }
+    }
+
+    /// New `FontHandle` with both slots filled.
+    #[must_use]
+    pub fn with_bold(handle: Handle<Font>, bold: Handle<Font>) -> Self {
+        Self {
+            regular: Some(handle),
+            bold: Some(bold),
+        }
+    }
+
+    /// Build a [`TextFont`] using the regular handle at the given size,
+    /// falling back to Bevy's default font if no handle is set.
     #[must_use]
     pub fn text_font(&self, size: f32) -> TextFont {
         let mut tf = TextFont {
             font_size: size,
             ..default()
         };
-        if let Some(h) = &self.0 {
+        if let Some(h) = &self.regular {
+            tf.font = h.clone();
+        }
+        tf
+    }
+
+    /// Build a bold [`TextFont`] using the bold handle if set, otherwise
+    /// the regular handle.
+    #[must_use]
+    pub fn text_font_bold(&self, size: f32) -> TextFont {
+        let mut tf = TextFont {
+            font_size: size,
+            ..default()
+        };
+        if let Some(h) = &self.bold {
+            tf.font = h.clone();
+        } else if let Some(h) = &self.regular {
             tf.font = h.clone();
         }
         tf
@@ -264,10 +313,16 @@ pub struct Typography {
 
 impl Default for Typography {
     fn default() -> Self {
+        // Values match the rendered pixel height egui produces with
+        // these same numeric tokens, so tempera widgets look identical
+        // to armas widgets when both share a Theme. Bevy_text and
+        // egui both interpret `font_size` as logical pixels, but
+        // armas-basic uses the slightly smaller scale (sm=12 vs
+        // shadcn's 13) — we follow armas to keep dawai parity.
         Self {
-            xxs: 10.0,
-            xs: 11.0,
-            sm: 13.0,
+            xxs: 8.0,
+            xs: 10.0,
+            sm: 12.0,
             base: 14.0,
             lg: 16.0,
             xl: 18.0,

@@ -5,8 +5,14 @@ use bevy::ui_widgets::Button;
 use super::components::{TabIndicator, TabTrigger, Tabs, TabsActive};
 use crate::theme::{ColorPalette, FontHandle, Spacing, Typography};
 
-const HEIGHT: f32 = 32.0;
-const TRIGGER_PADDING_X: f32 = 14.0;
+// Matches the dawai browser default: HEIGHT=26, TRIGGER_PADDING_X=8,
+// INDICATOR_INSET=2. The indicator is a solid `background`-filled
+// rounded rect (radius 4) inset by 2px on every side, matching
+// shadcn/ui Tabs and `armas-basic::Tabs`. (armas default is 28 but
+// dawai's panels all override to 26 — picking the smaller as the
+// tempera default eliminates the per-call override.)
+const HEIGHT: f32 = 26.0;
+const TRIGGER_PADDING_X: f32 = 8.0;
 pub(crate) const INDICATOR_INSET: f32 = 2.0;
 
 #[derive(SystemParam)]
@@ -37,12 +43,12 @@ pub fn spawn_tabs(
                 padding: UiRect::all(Val::Px(INDICATOR_INSET)),
                 border_radius: BorderRadius::all(Val::Px(style.spacing.corner_radius_small)),
                 position_type: PositionType::Relative,
-                // shadcn's tabs use `w-fit` — shrink to content rather
-                // than expand to the parent's cross-axis. A
-                // column-flex parent's default `align_items: Stretch`
-                // would otherwise blow the track out to full width.
-                align_self: AlignSelf::FlexStart,
-                width: Val::Auto,
+                // Full-width by default — every trigger flex-grows to
+                // share the row equally (matches armas-basic Tabs and
+                // shadcn/ui's default `inline-flex w-full` shape). To
+                // shrink-to-content, override `align_self` and
+                // `width` on the returned root.
+                width: Val::Percent(100.0),
                 ..default()
             },
             BackgroundColor(style.palette.muted),
@@ -50,13 +56,11 @@ pub fn spawn_tabs(
         ))
         .id();
 
-    // Indicator first so triggers paint on top of it. Matches shadcn
-    // dark mode: a faint `input` fill at 30% alpha with a 1px `input`
-    // border — subtle pill behind the active trigger rather than a
-    // solid `background` block (which would clash with the slightly
-    // brighter `muted` track introduced for toggle contrast).
-    let mut indicator_fill = style.palette.input;
-    indicator_fill.set_alpha(0.3);
+    // Active indicator — a `background`-filled rounded rect inset by
+    // 2px on every side, matching armas-basic Tabs / shadcn v4 Tabs
+    // (Tailwind: `bg-background`, `rounded-md`). The paint system
+    // (`move_indicator`) reads each trigger's `ComputedNode` and
+    // moves this Node's `left` + `width` under the active trigger.
     commands.spawn((
         TabIndicator,
         Node {
@@ -65,12 +69,10 @@ pub fn spawn_tabs(
             left: Val::Px(INDICATOR_INSET),
             width: Val::Px(0.0),
             height: Val::Px(HEIGHT - INDICATOR_INSET * 2.0),
-            border: UiRect::all(Val::Px(1.0)),
-            border_radius: BorderRadius::all(Val::Px(style.spacing.corner_radius_small - 2.0)),
+            border_radius: BorderRadius::all(Val::Px(style.spacing.corner_radius_tiny)),
             ..default()
         },
-        BackgroundColor(indicator_fill),
-        BorderColor::all(style.palette.input),
+        BackgroundColor(style.palette.background),
         bevy::picking::Pickable::IGNORE,
         ChildOf(root),
     ));
@@ -81,6 +83,12 @@ pub fn spawn_tabs(
                 Button,
                 TabTrigger { index },
                 Node {
+                    // Each trigger grows to share the row's width
+                    // evenly. Container padding (INDICATOR_INSET) is
+                    // already on the root, so triggers fill the
+                    // remaining inner row.
+                    flex_grow: 1.0,
+                    flex_basis: Val::Px(0.0),
                     height: Val::Px(HEIGHT - INDICATOR_INSET * 2.0),
                     padding: UiRect::horizontal(Val::Px(TRIGGER_PADDING_X)),
                     align_items: AlignItems::Center,
