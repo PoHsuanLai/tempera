@@ -1,0 +1,39 @@
+[package]
+name = "tempera"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Theme-aware UI widgets for bevy_ui — retained-mode, ECS-native"
+
+[dependencies]
+# Fork with `InputDispatchPlugin` registration guard so tempera's
+# other widget plugins (button/slider/etc.) can also install it
+# without panicking. Drop the fork when upstream merges the fix.
+bevy_ui_text_input = { git = "https://github.com/PoHsuanLai/bevy_ui_text_input.git", branch = "guard-input-dispatch" }
+# Typed keybind primitives — `ButtonlikeChord`, `ModifierKey`,
+# `KeyCode`. Used by `crate::kbd` so consumers can pass typed chords
+# instead of stringly-typed `"Cmd+S"`.
+leafwing-input-manager = "0.18"
+bevy = { version = "0.18", default-features = false, features = [
+    "bevy_ui",
+    "ui",
+    "ui_picking",
+    "bevy_picking",
+    "bevy_window",
+    "bevy_winit",
+    "bevy_text",
+    "bevy_color",
+    "bevy_log",
+    "bevy_render",
+    "default_font",
+    "x11",
+    "wayland",
+    # Headless menu / popover / focus widgets. Experimental in 0.18 —
+    # API may shift. Tempera's role is the *styling* layer on top.
+    "experimental_bevy_ui_widgets",
+] }
+
+[dev-dependencies]
+bevy = { version = "0.18", features = ["default_font"] }

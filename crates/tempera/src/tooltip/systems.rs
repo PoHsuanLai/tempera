@@ -1,0 +1,256 @@
+use bevy::picking::events::{Out, Over, Pointer};
+use bevy::prelude::*;
+use bevy::ui::{ComputedNode, UiGlobalTransform};
+use bevy::window::PrimaryWindow;
+
+use super::components::{Tooltip, TooltipArrow, TooltipHover, TooltipPopup, TooltipPosition};
+use super::spawn::spawn_popup;
+use crate::theme::{ColorPalette, FontHandle, Typography};
+
+/// Z-order for tooltip popups. Above menus, below modals.
+pub(crate) const Z_TOOLTIP: i32 = 2000;
+
+/// On `Pointer<Over>` of a tooltip target, start the hover timer.
+pub(crate) fn on_hover_start(
+    on: On<Pointer<Over>>,
+    time: Res<Time>,
+    targets: Query<(), With<Tooltip>>,
+    mut commands: Commands,
+) {
+    if targets.get(on.entity).is_err() {
+        return;
+    }
+    commands.entity(on.entity).insert(TooltipHover {
+        started_at: time.elapsed_secs(),
+    });
+}
+
+/// On `Pointer<Out>`, drop the hover timer and any popup spawned for
+/// this target.
+pub(crate) fn on_hover_end(
+    on: On<Pointer<Out>>,
+    targets: Query<(), With<Tooltip>>,
+    popups: Query<(Entity, &TooltipPopup)>,
+    mut commands: Commands,
+) {
+    if targets.get(on.entity).is_err() {
+        return;
+    }
+    commands.entity(on.entity).remove::<TooltipHover>();
+    for (popup, marker) in &popups {
+        if marker.target == on.entity {
+            commands.entity(popup).try_despawn();
+        }
+    }
+}
+
+/// Once `delay_ms` has elapsed for a hovered target without a popup
+/// already spawned, spawn it.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn open_tooltips(
+    time: Res<Time>,
+    palette: Res<ColorPalette>,
+    typography: Res<Typography>,
+    font: Res<FontHandle>,
+    hovered: Query<
+        (Entity, &Tooltip, &TooltipHover, &ComputedNode, &UiGlobalTransform),
+        Without<TooltipPopup>,
+    >,
+    popups: Query<&TooltipPopup>,
+    window: Query<&Window, With<PrimaryWindow>>,
+    mut commands: Commands,
+) {
+    let Ok(window) = window.single() else {
+        return;
+    };
+    let window_size = Vec2::new(window.width(), window.height());
+
+    let now = time.elapsed_secs();
+    for (entity, tooltip, hover, node, transform) in &hovered {
+        // Don't double-spawn if one already exists for this target.
+        if popups.iter().any(|p| p.target == entity) {
+            continue;
+        }
+        let elapsed_ms = ((now - hover.started_at) * 1000.0) as u64;
+        if elapsed_ms < tooltip.delay_ms {
+            continue;
+        }
+
+        let scale = node.inverse_scale_factor();
+        let target_center = transform.translation * scale;
+        let target_half = node.size() * scale * 0.5;
+        spawn_popup(
+            &mut commands,
+            entity,
+            tooltip,
+            target_center,
+            target_half,
+            window_size,
+            &palette,
+            &typography,
+            &font,
+        );
+    }
+}
+
+/// Keep the popup anchored to its target each frame. Targets can move
+/// (animated layouts, scroll containers) so we recompute every frame
+/// while the popup exists. Also despawn orphans whose target is gone.
+pub(crate) fn sync_popup_positions(
+    targets: Query<(&Tooltip, &ComputedNode, &UiGlobalTransform), Without<TooltipPopup>>,
+    popup_size: Query<&ComputedNode, With<TooltipPopup>>,
+    mut popups: Query<(Entity, &mut TooltipPopup, &mut Node), Without<TooltipArrow>>,
+    mut arrows: Query<(&ChildOf, &mut Node), (With<TooltipArrow>, Without<TooltipPopup>)>,
+    window: Query<&Window, With<PrimaryWindow>>,
+    mut commands: Commands,
+) {
+    let Ok(window) = window.single() else {
+        return;
+    };
+    let window_size = Vec2::new(window.width(), window.height());
+
+    for (popup_entity, mut marker, mut node) in &mut popups {
+        let Ok((tooltip, target_node, target_xf)) = targets.get(marker.target) else {
+            // Target is gone — despawn the orphaned popup.
+            commands.entity(popup_entity).try_despawn();
+            continue;
+        };
+        let Ok(popup_cn) = popup_size.get(popup_entity) else {
+            continue;
+        };
+        let scale = target_node.inverse_scale_factor();
+        let popup_size_logical = popup_cn.size() * popup_cn.inverse_scale_factor();
+        let target_center = target_xf.translation * scale;
+        let target_half = target_node.size() * scale * 0.5;
+
+        let placement = place_tooltip(
+            tooltip.position,
+            target_center,
+            target_half,
+            popup_size_logical,
+            window_size,
+            tooltip.show_arrow,
+        );
+        node.left = Val::Px(placement.popup_min.x);
+        node.top = Val::Px(placement.popup_min.y);
+        marker.position = placement.resolved;
+
+        // Reposition the arrow child to point at the target.
+        for (child_of, mut arrow_node) in &mut arrows {
+            if child_of.0 != popup_entity {
+                continue;
+            }
+            let (arrow_x, arrow_y, arrow_rotation) = arrow_offset(
+                placement.resolved,
+                popup_size_logical,
+            );
+            arrow_node.left = Val::Px(arrow_x);
+            arrow_node.top = Val::Px(arrow_y);
+            // We use a single triangle texture; rotate via transform.
+            // (Rotation handled in spawn via 4 separate triangle
+            // shapes — see super::spawn.)
+            let _ = arrow_rotation;
+        }
+    }
+}
+
+pub(crate) struct Placement {
+    pub popup_min: Vec2,
+    pub resolved: TooltipPosition,
+}
+
+pub(crate) fn place_tooltip(
+    preferred: TooltipPosition,
+    target_center: Vec2,
+    target_half: Vec2,
+    popup_size: Vec2,
+    window_size: Vec2,
+    show_arrow: bool,
+) -> Placement {
+    let arrow_gap = if show_arrow { super::spawn::ARROW_SIZE + 2.0 } else { 4.0 };
+
+    let resolved = match preferred {
+        TooltipPosition::Auto => choose_auto(
+            target_center,
+            target_half,
+            popup_size,
+            window_size,
+            arrow_gap,
+        ),
+        explicit => explicit,
+    };
+
+    let popup_min = match resolved {
+        TooltipPosition::Top => Vec2::new(
+            target_center.x - popup_size.x * 0.5,
+            target_center.y - target_half.y - popup_size.y - arrow_gap,
+        ),
+        TooltipPosition::Bottom => Vec2::new(
+            target_center.x - popup_size.x * 0.5,
+            target_center.y + target_half.y + arrow_gap,
+        ),
+        TooltipPosition::Left => Vec2::new(
+            target_center.x - target_half.x - popup_size.x - arrow_gap,
+            target_center.y - popup_size.y * 0.5,
+        ),
+        TooltipPosition::Right => Vec2::new(
+            target_center.x + target_half.x + arrow_gap,
+            target_center.y - popup_size.y * 0.5,
+        ),
+        TooltipPosition::Auto => unreachable!("resolved above"),
+    };
+
+    // Clamp into the window so the popup is fully visible.
+    let popup_min = Vec2::new(
+        popup_min.x.clamp(4.0, (window_size.x - popup_size.x - 4.0).max(4.0)),
+        popup_min.y.clamp(4.0, (window_size.y - popup_size.y - 4.0).max(4.0)),
+    );
+
+    Placement {
+        popup_min,
+        resolved,
+    }
+}
+
+fn choose_auto(
+    target_center: Vec2,
+    target_half: Vec2,
+    popup_size: Vec2,
+    window_size: Vec2,
+    gap: f32,
+) -> TooltipPosition {
+    let space_above = target_center.y - target_half.y;
+    let space_below = window_size.y - (target_center.y + target_half.y);
+    let space_left = target_center.x - target_half.x;
+    let space_right = window_size.x - (target_center.x + target_half.x);
+
+    let need_v = popup_size.y + gap;
+    let need_h = popup_size.x + gap;
+
+    if space_above >= need_v {
+        TooltipPosition::Top
+    } else if space_below >= need_v {
+        TooltipPosition::Bottom
+    } else if space_right >= need_h {
+        TooltipPosition::Right
+    } else if space_left >= need_h {
+        TooltipPosition::Left
+    } else {
+        TooltipPosition::Top
+    }
+}
+
+/// Pixel offset (left, top) of the arrow child within the popup, plus
+/// a rotation in radians for the triangle drawable. For now we just
+/// position the arrow at the popup edge; rotation is unused (we use
+/// per-direction arrow nodes in spawn).
+fn arrow_offset(position: TooltipPosition, popup_size: Vec2) -> (f32, f32, f32) {
+    let s = super::spawn::ARROW_SIZE;
+    match position {
+        TooltipPosition::Top => (popup_size.x * 0.5 - s, popup_size.y, 0.0),
+        TooltipPosition::Bottom => (popup_size.x * 0.5 - s, -s * 2.0, std::f32::consts::PI),
+        TooltipPosition::Left => (popup_size.x, popup_size.y * 0.5 - s, -std::f32::consts::FRAC_PI_2),
+        TooltipPosition::Right => (-s * 2.0, popup_size.y * 0.5 - s, std::f32::consts::FRAC_PI_2),
+        TooltipPosition::Auto => (0.0, 0.0, 0.0),
+    }
+}
