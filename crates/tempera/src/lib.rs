@@ -31,6 +31,7 @@ pub mod command;
 mod checkbox_behavior;
 pub mod context_menu;
 pub mod cursor;
+pub mod dialog;
 pub mod dropdown_menu;
 pub mod kbd;
 pub mod number_field;
@@ -77,6 +78,10 @@ pub mod prelude {
     pub use crate::toggle_group::{
         spawn_toggle_group, RadioButton, RadioGroup, ToggleGroup, ToggleGroupItem,
         ToggleGroupKind, ToggleGroupStyle, ToggleGroupStylePlugin, ToggleItem,
+    };
+    pub use crate::dialog::{
+        spawn_dialog, Dialog, DialogBackdrop, DialogCard, DialogClose, DialogConfig,
+        DialogContent, DialogDismissed, DialogParts, DialogPlugin, DialogStyle,
     };
     pub use crate::dropdown_menu::{
         spawn_dropdown, DropdownMenuPlugin, DropdownStyle, DropdownTrigger,
@@ -128,6 +133,7 @@ impl Plugin for TemperaPlugin {
         app.add_plugins(progress::ProgressPlugin);
         app.add_plugins(kbd::KbdPlugin);
         app.add_plugins(tabs::TabsPlugin);
+        app.add_plugins(dialog::DialogPlugin);
         app.add_plugins(dropdown_menu::DropdownMenuPlugin);
         app.add_plugins(text_input::TextInputStylePlugin);
         app.add_plugins(number_field::NumberFieldPlugin);
