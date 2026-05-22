@@ -102,7 +102,10 @@ pub mod prelude {
         spawn_separator, SeparatorAxis, SeparatorPlugin, SeparatorStyle,
     };
     pub use crate::toast::{
-        ToastBuilder, ToastId, ToastManager, ToastNode, ToastPlugin, ToastPosition, ToastVariant,
+        spawn_error as spawn_toast_error, spawn as spawn_toast, Toast, ToastConfig,
+        ToastDismissible, ToastDuration, ToastExternalProgress, ToastMessage, ToastNodes,
+        ToastPlugin, ToastPosition, ToastShowProgress, ToastSlide, ToastSpec, ToastTitle,
+        ToastVariant,
     };
     pub use crate::tooltip::{Tooltip, TooltipArrow, TooltipPlugin, TooltipPopup, TooltipPosition};
     pub use crate::text_input::{

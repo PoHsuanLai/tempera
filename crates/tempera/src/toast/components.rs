@@ -1,12 +1,78 @@
 use bevy::prelude::*;
 use std::time::Duration;
 
+/// Marker on a toast root entity. Carry alongside per-field
+/// components ([`ToastVariant`], [`ToastMessage`], …).
+#[derive(Component, Default, Debug)]
+pub struct Toast;
+
 /// Variant of a toast — controls accent color and the leading icon.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ToastVariant {
     #[default]
     Default,
     Destructive,
+}
+
+/// Optional title shown bold above the message. Spawning without this
+/// component renders a message-only toast.
+#[derive(Component, Clone, Debug, Default)]
+pub struct ToastTitle(pub String);
+
+/// Body text. Mutate in place — the reconcile system writes the new
+/// string into the existing message text node on `Changed<ToastMessage>`.
+#[derive(Component, Clone, Debug, Default)]
+pub struct ToastMessage(pub String);
+
+/// Timestamp written by the reconcile system the first frame the toast
+/// is processed. Used to compute the auto-dismiss countdown.
+#[derive(Component, Clone, Copy, Debug)]
+pub struct ToastCreated(pub f32);
+
+/// Auto-dismiss timeout. Ignored while [`ToastExternalProgress`] is set.
+#[derive(Component, Clone, Copy, Debug)]
+pub struct ToastDuration(pub Duration);
+
+impl Default for ToastDuration {
+    fn default() -> Self {
+        Self(Duration::from_secs_f32(4.0))
+    }
+}
+
+/// Externally-driven progress (0.0..=1.0). While present, the toast
+/// will not auto-dismiss; the progress bar reflects this value
+/// instead of the countdown. Remove the component to flip back to the
+/// timed countdown ([`commands.entity(e).remove::<ToastExternalProgress>()`]).
+#[derive(Component, Clone, Copy, Debug)]
+pub struct ToastExternalProgress(pub f32);
+
+/// Marker requesting the progress bar be rendered (defaults off, to
+/// match shadcn's Sonner). External-progress toasts implicitly behave
+/// as if this were present.
+#[derive(Component, Default, Debug)]
+pub struct ToastShowProgress;
+
+/// Marker — the toast can be dismissed by clicking. Reserved; the
+/// click handler is not wired yet.
+#[derive(Component, Default, Debug)]
+pub struct ToastDismissible;
+
+/// Spring state for the slide-in animation.
+#[derive(Component, Default, Clone, Copy, Debug)]
+pub struct ToastSlide {
+    pub value: f32,
+    pub velocity: f32,
+}
+
+/// UI subtree handles, written by the reconcile system once it spawns
+/// the toast's node tree. Subsequent frames look these up to update
+/// the message text and progress-bar fill width without a query walk.
+#[derive(Component, Clone, Copy, Debug)]
+pub struct ToastNodes {
+    pub root: Entity,
+    pub message_text: Entity,
+    pub title_text: Option<Entity>,
+    pub progress_fill: Option<Entity>,
 }
 
 /// Where on the window toasts stack. shadcn's Sonner default is
@@ -20,56 +86,4 @@ pub enum ToastPosition {
     BottomCenter,
     #[default]
     BottomRight,
-}
-
-/// Opaque handle returned when creating a toast. Use with
-/// `ToastManager::set_progress` / `set_message` / `start_dismiss` /
-/// `dismiss` to update or remove a toast after it's been added.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct ToastId(pub(crate) u64);
-
-/// Marker on the toast root entity. Carries the toast id so update
-/// systems can find it.
-#[derive(Component, Clone, Copy, Debug)]
-pub struct ToastNode {
-    pub id: u64,
-}
-
-/// Marker on the toast's message Text child. Used by `set_message`
-/// to update the displayed text in place.
-#[derive(Component, Debug)]
-pub struct ToastMessageText;
-
-/// Marker on the toast's title Text child.
-#[derive(Component, Debug)]
-pub struct ToastTitleText;
-
-/// Marker on the progress-bar fill child. Width is updated each
-/// frame to reflect either the auto-dismiss countdown or the
-/// externally-driven progress value. The drive system reaches it
-/// via the entity stored on the `ToastRecord`, not by querying for
-/// this marker — the marker is just a name tag.
-#[derive(Component, Default, Debug)]
-pub struct ToastProgressFill;
-
-/// Configuration for spawning a single toast. Stored in the
-/// [`crate::toast::ToastManager`] queue until rendered.
-#[derive(Clone, Debug)]
-pub struct ToastConfig {
-    pub id: u64,
-    pub title: Option<String>,
-    pub message: String,
-    pub variant: ToastVariant,
-    pub duration: Duration,
-    pub dismissible: bool,
-    /// If `Some(_)`, the toast won't auto-dismiss; the progress bar
-    /// reflects this externally-driven value (0.0..=1.0). Use
-    /// `ToastManager::start_dismiss` to flip back to the timed
-    /// countdown. Always rendered with a visible progress bar.
-    pub external_progress: Option<f32>,
-    /// Whether to render the auto-dismiss countdown as a progress bar
-    /// underneath the message. Defaults to `false` (matches shadcn's
-    /// Sonner). External-progress toasts always show the bar
-    /// regardless.
-    pub show_progress: bool,
 }

@@ -1,154 +1,155 @@
+//! Toast spawn API.
+//!
+//! Spawning a toast is just spawning an entity. The [`ToastSpec`]
+//! builder is sugar for the common cases (title, message, variant,
+//! progress, custom duration); the free [`spawn`] / [`spawn_error`]
+//! helpers cover the one-liners.
+//!
+//! ```ignore
+//! // One-shot.
+//! tempera::toast::spawn(&mut commands, "Project saved");
+//!
+//! // Destructive variant.
+//! tempera::toast::spawn_error(&mut commands, "Save failed");
+//!
+//! // Progress toast — caller keeps the Entity to update later.
+//! let e = tempera::toast::ToastSpec::new("Rendering audio…")
+//!     .title("Exporting")
+//!     .progress(0.0)
+//!     .spawn(&mut commands);
+//!
+//! // Later: update the message + progress.
+//! commands.entity(e)
+//!     .insert(ToastMessage("Halfway".into()))
+//!     .insert(ToastExternalProgress(0.5));
+//!
+//! // Finish + start the timed countdown back up.
+//! commands.entity(e)
+//!     .insert(ToastMessage("Done!".into()))
+//!     .remove::<ToastExternalProgress>();
+//! ```
+
+use std::time::Duration;
+
 use bevy::prelude::*;
 
 use super::components::{
-    ToastMessageText, ToastNode, ToastProgressFill, ToastTitleText, ToastVariant,
+    Toast, ToastDismissible, ToastDuration, ToastExternalProgress, ToastMessage,
+    ToastShowProgress, ToastSlide, ToastTitle, ToastVariant,
 };
-use super::manager::ToastRecord;
-use super::systems::{
-    variant_color, PROGRESS_HEIGHT_LOGICAL, TOAST_CORNER_RADIUS_LOGICAL, TOAST_PADDING_LOGICAL,
-    TOAST_SPACING_LOGICAL, Z_TOAST,
-};
-use crate::theme::{ColorPalette, FontHandle, Typography};
 
-/// Build the toast UI subtree:
-/// ```
-/// root (column, padded card)
-///   ├── header row (icon + message + close-button placeholder)
-///   │     ├── icon dot
-///   │     └── text column (title? + message)
-///   └── progress-bar row
-///         └── fill (width: 0% initially, drive system updates each frame)
-/// ```
-/// Spawn the toast UI tree. Returns `(root, progress_fill)` — fill
-/// is `Some` only when the toast was configured with a visible
-/// progress bar (either explicit or external).
-pub(crate) fn spawn_toast(
-    commands: &mut Commands,
-    record: &ToastRecord,
-    width: f32,
-    palette: &ColorPalette,
-    typography: &Typography,
-    font: &FontHandle,
-) -> (Entity, Option<Entity>) {
-    let accent = variant_color(palette, record.config.variant);
-    let label_font = font.text_font(typography.sm);
-    let title_font = font.text_font(typography.base);
+/// Builder for a toast entity. Spawn with [`ToastSpec::spawn`].
+#[derive(Clone, Debug)]
+pub struct ToastSpec {
+    title: Option<String>,
+    message: String,
+    variant: ToastVariant,
+    duration: Duration,
+    dismissible: bool,
+    external_progress: Option<f32>,
+    show_progress: bool,
+}
 
-    let root = commands
-        .spawn((
-            ToastNode { id: record.config.id },
-            Node {
-                position_type: PositionType::Absolute,
-                width: Val::Px(width),
-                flex_direction: FlexDirection::Column,
-                padding: UiRect::all(Val::Px(TOAST_PADDING_LOGICAL)),
-                border_radius: BorderRadius::all(Val::Px(TOAST_CORNER_RADIUS_LOGICAL)),
-                border: UiRect::all(Val::Px(1.0)),
-                row_gap: Val::Px(TOAST_SPACING_LOGICAL),
-                ..default()
-            },
-            BackgroundColor(palette.popover),
-            BorderColor::all(palette.border),
-            GlobalZIndex(Z_TOAST),
-            bevy::picking::Pickable::IGNORE,
-            Name::new("tempera::toast"),
-        ))
-        .id();
-
-    // Header row — icon + text column.
-    let header = commands
-        .spawn((
-            Node {
-                flex_direction: FlexDirection::Row,
-                column_gap: Val::Px(TOAST_SPACING_LOGICAL),
-                align_items: AlignItems::Start,
-                ..default()
-            },
-            BackgroundColor(Color::NONE),
-            ChildOf(root),
-        ))
-        .id();
-
-    // Accent dot — stands in for the variant icon. (We don't ship
-    // icon glyphs in tempera yet; this matches armas's visual weight.)
-    commands.spawn((
-        Node {
-            width: Val::Px(8.0),
-            height: Val::Px(8.0),
-            margin: UiRect::top(Val::Px(6.0)),
-            border_radius: BorderRadius::MAX,
-            ..default()
-        },
-        BackgroundColor(accent),
-        ChildOf(header),
-    ));
-
-    let text_col = commands
-        .spawn((
-            Node {
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(2.0),
-                flex_grow: 1.0,
-                ..default()
-            },
-            BackgroundColor(Color::NONE),
-            ChildOf(header),
-        ))
-        .id();
-
-    if let Some(title) = &record.config.title {
-        commands.spawn((
-            ToastTitleText,
-            Text::new(title.clone()),
-            title_font,
-            TextColor(palette.foreground),
-            ChildOf(text_col),
-        ));
+impl ToastSpec {
+    pub fn new(message: impl Into<String>) -> Self {
+        Self {
+            title: None,
+            message: message.into(),
+            variant: ToastVariant::Default,
+            duration: ToastDuration::default().0,
+            dismissible: true,
+            external_progress: None,
+            show_progress: false,
+        }
     }
-    commands.spawn((
-        ToastMessageText,
-        Text::new(record.config.message.clone()),
-        label_font,
-        TextColor(palette.muted_foreground),
-        ChildOf(text_col),
-    ));
 
-    // Progress-bar track + fill — only when requested. Off by
-    // default (matches shadcn Sonner); external-progress toasts force
-    // it on via the builder.
-    let needs_progress =
-        record.config.show_progress || record.config.external_progress.is_some();
-    let progress_fill = needs_progress.then(|| {
-        let track = commands
-            .spawn((
-                Node {
-                    width: Val::Percent(100.0),
-                    height: Val::Px(PROGRESS_HEIGHT_LOGICAL),
-                    border_radius: BorderRadius::all(Val::Px(PROGRESS_HEIGHT_LOGICAL * 0.5)),
-                    ..default()
-                },
-                BackgroundColor(palette.muted),
-                ChildOf(root),
-            ))
-            .id();
+    #[must_use]
+    pub fn title(mut self, title: impl Into<String>) -> Self {
+        self.title = Some(title.into());
+        self
+    }
 
-        commands
-            .spawn((
-                ToastProgressFill,
-                Node {
-                    width: Val::Percent(0.0),
-                    height: Val::Percent(100.0),
-                    border_radius: BorderRadius::all(Val::Px(PROGRESS_HEIGHT_LOGICAL * 0.5)),
-                    ..default()
-                },
-                BackgroundColor(accent),
-                ChildOf(track),
-            ))
-            .id()
-    });
+    #[must_use]
+    pub fn message(mut self, message: impl Into<String>) -> Self {
+        self.message = message.into();
+        self
+    }
 
-    // Suppress unused-variant warning when there's no other consumer.
-    let _ = ToastVariant::Default;
+    #[must_use]
+    pub fn variant(mut self, variant: ToastVariant) -> Self {
+        self.variant = variant;
+        self
+    }
 
-    (root, progress_fill)
+    #[must_use]
+    pub fn destructive(mut self) -> Self {
+        self.variant = ToastVariant::Destructive;
+        self
+    }
+
+    #[must_use]
+    pub fn duration(mut self, duration: Duration) -> Self {
+        self.duration = duration;
+        self
+    }
+
+    #[must_use]
+    pub fn dismissible(mut self, dismissible: bool) -> Self {
+        self.dismissible = dismissible;
+        self
+    }
+
+    /// Externally-driven progress (0.0..=1.0). The toast won't
+    /// auto-dismiss until the caller removes
+    /// [`ToastExternalProgress`]. Implies [`Self::show_progress`].
+    #[must_use]
+    pub fn progress(mut self, progress: f32) -> Self {
+        self.external_progress = Some(progress.clamp(0.0, 1.0));
+        self.show_progress = true;
+        self
+    }
+
+    /// Show the auto-dismiss countdown as a progress bar. Off by
+    /// default (matches shadcn's Sonner).
+    #[must_use]
+    pub fn show_progress(mut self, show: bool) -> Self {
+        self.show_progress = show;
+        self
+    }
+
+    /// Spawn the toast entity. Returns its [`Entity`] for follow-up
+    /// mutations.
+    pub fn spawn(self, commands: &mut Commands) -> Entity {
+        let mut e = commands.spawn((
+            Toast,
+            self.variant,
+            ToastMessage(self.message),
+            ToastDuration(self.duration),
+            ToastSlide::default(),
+            Name::new("tempera::toast"),
+        ));
+        if let Some(title) = self.title {
+            e.insert(ToastTitle(title));
+        }
+        if let Some(p) = self.external_progress {
+            e.insert(ToastExternalProgress(p));
+        }
+        if self.show_progress {
+            e.insert(ToastShowProgress);
+        }
+        if self.dismissible {
+            e.insert(ToastDismissible);
+        }
+        e.id()
+    }
+}
+
+/// Spawn a one-shot default-variant toast.
+pub fn spawn(commands: &mut Commands, message: impl Into<String>) -> Entity {
+    ToastSpec::new(message).spawn(commands)
+}
+
+/// Spawn a destructive (error) toast.
+pub fn spawn_error(commands: &mut Commands, message: impl Into<String>) -> Entity {
+    ToastSpec::new(message).destructive().spawn(commands)
 }

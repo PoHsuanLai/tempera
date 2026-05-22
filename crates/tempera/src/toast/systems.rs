@@ -1,11 +1,27 @@
+//! Toast lifecycle + UI reconciliation.
+//!
+//! Two systems:
+//!
+//! - [`reconcile_toast_ui`] — for any toast entity that doesn't yet
+//!   have [`ToastNodes`], spawn the UI subtree (root + header + text +
+//!   optional progress bar) and attach the handle component.
+//! - [`tick_toasts`] — every frame:
+//!     - stamp [`ToastCreated`] the first time we see a toast,
+//!     - advance the slide spring,
+//!     - re-anchor the stack (newest closest to the corner),
+//!     - update message text on `Changed<ToastMessage>`,
+//!     - update the progress-bar fill width,
+//!     - despawn expired toasts (countdown finished, no external
+//!       progress component) plus their UI subtree.
+
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
-use std::collections::HashSet;
 
 use super::components::{
-    ToastMessageText, ToastNode, ToastPosition, ToastProgressFill, ToastTitleText, ToastVariant,
+    Toast, ToastCreated, ToastDuration, ToastExternalProgress, ToastMessage, ToastNodes,
+    ToastPosition, ToastShowProgress, ToastSlide, ToastTitle, ToastVariant,
 };
-use super::manager::ToastManager;
+use super::ToastConfig;
 use crate::anim::Spring;
 use crate::theme::{ColorPalette, FontHandle, Typography};
 
@@ -18,26 +34,68 @@ const PROGRESS_HEIGHT: f32 = 2.0;
 /// Slide offset in logical pixels at slide=0.0 (toast fully off-edge).
 const SLIDE_OFFSET: f32 = 50.0;
 /// Z-order so toasts paint above tooltips and menus.
-pub(crate) const Z_TOAST: i32 = 3000;
+const Z_TOAST: i32 = 3000;
 
-/// Spawn UI nodes for newly-added toasts, despawn nodes for dismissed
-/// ones, and re-anchor the stack each frame so toasts slide-in from
-/// the chosen corner.
-pub(crate) fn drive_toasts(
-    time: Res<Time>,
+/// Build a UI subtree for any toast entity that doesn't have one yet,
+/// and attach [`ToastNodes`] so the tick system can find the nodes
+/// without re-querying.
+pub(crate) fn reconcile_toast_ui(
+    mut commands: Commands,
     palette: Res<ColorPalette>,
     typography: Res<Typography>,
     font: Res<FontHandle>,
-    window: Query<&Window, With<PrimaryWindow>>,
-    mut manager: ResMut<ToastManager>,
-    existing: Query<(Entity, &ToastNode)>,
-    mut nodes: Query<&mut Node, (With<ToastNode>, Without<ToastProgressFill>)>,
-    mut message_texts: Query<
-        (&ChildOf, &mut Text),
-        (With<ToastMessageText>, Without<ToastTitleText>),
+    config: Res<ToastConfig>,
+    toasts: Query<
+        (
+            Entity,
+            &ToastVariant,
+            &ToastMessage,
+            Option<&ToastTitle>,
+            Option<&ToastExternalProgress>,
+            Has<ToastShowProgress>,
+        ),
+        (With<Toast>, Without<ToastNodes>),
     >,
-    mut fill_nodes: Query<&mut Node, (With<ToastProgressFill>, Without<ToastNode>)>,
+) {
+    for (toast, variant, message, title, external_progress, show_progress) in &toasts {
+        let nodes = spawn_subtree(
+            &mut commands,
+            toast,
+            *variant,
+            message,
+            title,
+            external_progress.is_some() || show_progress,
+            config.width,
+            &palette,
+            &typography,
+            &font,
+        );
+        commands.entity(toast).insert(nodes);
+    }
+}
+
+/// Drive every active toast each frame.
+#[allow(clippy::type_complexity, clippy::too_many_arguments)]
+pub(crate) fn tick_toasts(
     mut commands: Commands,
+    time: Res<Time>,
+    config: Res<ToastConfig>,
+    window: Query<&Window, With<PrimaryWindow>>,
+    mut toasts: Query<
+        (
+            Entity,
+            &ToastNodes,
+            &ToastDuration,
+            Option<&mut ToastCreated>,
+            &mut ToastSlide,
+            &ToastMessage,
+            Option<&ToastExternalProgress>,
+        ),
+        With<Toast>,
+    >,
+    changed_messages: Query<(&ToastNodes, &ToastMessage), Changed<ToastMessage>>,
+    mut node_q: Query<&mut Node>,
+    mut text_q: Query<&mut Text>,
 ) {
     let Ok(window) = window.single() else {
         return;
@@ -46,89 +104,118 @@ pub(crate) fn drive_toasts(
     let now = time.elapsed_secs();
     let dt = time.delta_secs();
 
-    // 1. Drop expired (timed) toasts from the queue.
-    manager.toasts.retain(|t| !t.is_expired(now));
-
-    // 2. Build a set of active toast ids so we can detect stale nodes.
-    let active_ids: HashSet<u64> = manager.toasts.iter().map(|t| t.config.id).collect();
-
-    // 3. Despawn nodes whose record is gone.
-    for (entity, marker) in &existing {
-        if !active_ids.contains(&marker.id) {
-            commands.entity(entity).try_despawn();
+    // 1. Update message text in place for any toast whose message changed.
+    for (nodes, message) in &changed_messages {
+        if let Ok(mut text) = text_q.get_mut(nodes.message_text) {
+            if text.0 != message.0 {
+                text.0 = message.0.clone();
+            }
         }
     }
 
-    // 4. For each active toast, ensure a node exists and is anchored.
-    //    Iterate newest → oldest so the newest sits closest to the
-    //    corner (matches shadcn Sonner).
-    let position = manager.position;
-    let width = manager.width;
-    let total = manager.toasts.len();
-    for (record_index, record) in manager.toasts.iter_mut().enumerate() {
-        let index = total - 1 - record_index;
-        if record.created_at < 0.0 {
-            record.created_at = now;
+    // 2. Snapshot every active toast's spawn order so we can re-anchor
+    //    the stack with newest closest to the corner.
+    let mut entries: Vec<(Entity, f32)> = toasts
+        .iter()
+        .filter_map(|(e, _, _, created, _, _, _)| created.map(|c| (e, c.0)))
+        .collect();
+    // Toasts that haven't been stamped yet (this is their first frame)
+    // get the current timestamp here so they participate in the stack
+    // ordering on the same frame they appear.
+    for (e, _, _, created, _, _, _) in &toasts {
+        if created.is_none() {
+            entries.push((e, now));
         }
+    }
+    entries.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+    let total = entries.len();
 
-        // Advance slide spring toward 1.0 (fully on-screen).
-        let mut spring = Spring::new(record.slide, 1.0).params(250.0, 25.0);
-        spring.velocity = record.slide_velocity;
-        spring.update(dt);
-        record.slide = spring.value;
-        record.slide_velocity = spring.velocity;
+    // 3. Drive each toast.
+    let mut to_despawn: Vec<Entity> = Vec::new();
+    for (entity, nodes, duration, mut created, mut slide, _message, external) in &mut toasts {
+        // Stamp creation time on first sighting.
+        let created_at = match created.as_mut() {
+            Some(c) => c.0,
+            None => {
+                commands.entity(entity).insert(ToastCreated(now));
+                now
+            }
+        };
 
-        // Update message text in place if we already have a node.
-        if let Some(entity) = record.node {
-            for (parent, mut text) in &mut message_texts {
-                if parent.0 == entity {
-                    if text.0 != record.config.message {
-                        text.0 = record.config.message.clone();
-                    }
-                    break;
-                }
+        // Expire check (only when no external progress is driving it).
+        if external.is_none() {
+            let elapsed = now - created_at;
+            if elapsed >= duration.0.as_secs_f32() {
+                to_despawn.push(entity);
+                continue;
             }
         }
 
-        // Spawn the node on first sighting.
-        if record.node.is_none() {
-            let (entity, fill) = super::spawn::spawn_toast(
-                &mut commands,
-                record,
-                width,
-                &palette,
-                &typography,
-                &font,
-            );
-            record.node = Some(entity);
-            record.progress_fill = fill;
-        }
+        // Advance slide spring toward 1.0.
+        let mut spring = Spring::new(slide.value, 1.0).params(250.0, 25.0);
+        spring.velocity = slide.velocity;
+        spring.update(dt);
+        slide.value = spring.value;
+        slide.velocity = spring.velocity;
 
-        // Anchor + slide offset.
-        let stack_offset = (TOAST_HEIGHT + TOAST_SPACING) * index as f32;
-        let slide_t = record.slide.clamp(0.0, 1.0);
+        // Stack index (oldest = bottom of stack, near the corner = newest).
+        let stack_index = entries
+            .iter()
+            .rposition(|(e, _)| *e == entity)
+            .map(|pos| total - 1 - pos)
+            .unwrap_or(0);
+        let stack_offset = (TOAST_HEIGHT + TOAST_SPACING) * stack_index as f32;
+        let slide_t = slide.value.clamp(0.0, 1.0);
         let (left, right, top, bottom) =
-            anchor_for(position, window_size, stack_offset, slide_t, width);
-
-        if let Some(entity) = record.node
-            && let Ok(mut node) = nodes.get_mut(entity)
-        {
+            anchor_for(config.position, window_size, stack_offset, slide_t);
+        if let Ok(mut node) = node_q.get_mut(nodes.root) {
             node.left = left;
             node.right = right;
             node.top = top;
             node.bottom = bottom;
         }
 
-        // Update progress-bar fill width — direct entity lookup.
-        if let Some(fill) = record.progress_fill
-            && let Ok(mut node) = fill_nodes.get_mut(fill)
+        // Progress-bar fill.
+        if let Some(fill) = nodes.progress_fill
+            && let Ok(mut node) = node_q.get_mut(fill)
         {
-            node.width = Val::Percent(record.progress(now) * 100.0);
+            let p = match external {
+                Some(ext) => ext.0.clamp(0.0, 1.0),
+                None => {
+                    let dur = duration.0.as_secs_f32();
+                    if dur <= 0.0 {
+                        1.0
+                    } else {
+                        ((now - created_at) / dur).clamp(0.0, 1.0)
+                    }
+                }
+            };
+            node.width = Val::Percent(p * 100.0);
         }
+    }
+
+    // 4. Enforce max_toasts. Despawn the oldest above the ceiling.
+    let max = config.max_toasts;
+    if entries.len() > max {
+        let excess = entries.len() - max;
+        for (entity, _) in entries.iter().take(excess) {
+            if !to_despawn.contains(entity) {
+                to_despawn.push(*entity);
+            }
+        }
+    }
+
+    for entity in to_despawn {
+        // Despawn the UI subtree by recursively dropping the root, then
+        // drop the toast data entity itself.
+        if let Ok((_, nodes, _, _, _, _, _)) = toasts.get(entity) {
+            commands.entity(nodes.root).despawn();
+        }
+        commands.entity(entity).despawn();
     }
 }
 
-/// Anchor + slide-offset for a toast at `index` in the stack.
+/// Anchor + slide-offset for a toast at `stack_index` in the stack.
 /// Returns (left, right, top, bottom) in `Val`s — exactly one of each
 /// axis is `Auto` so flex anchors from the chosen edge.
 fn anchor_for(
@@ -136,7 +223,6 @@ fn anchor_for(
     window: Vec2,
     stack: f32,
     slide_t: f32,
-    _width: f32,
 ) -> (Val, Val, Val, Val) {
     let slide_in = SLIDE_OFFSET * (1.0 - slide_t);
     let v_offset = TOAST_MARGIN + stack;
@@ -148,16 +234,8 @@ fn anchor_for(
             Val::Auto,
         ),
         ToastPosition::TopCenter => {
-            // For center, position via `left` + `right` matching; the
-            // popup's own intrinsic width sits centered. We approximate
-            // by computing midpoint.
-            let mid_left = (window.x * 0.5) - 178.0; // ~width/2 default
-            (
-                Val::Px(mid_left),
-                Val::Auto,
-                Val::Px(v_offset - slide_in.signum() * 0.0),
-                Val::Auto,
-            )
+            let mid_left = (window.x * 0.5) - 178.0;
+            (Val::Px(mid_left), Val::Auto, Val::Px(v_offset), Val::Auto)
         }
         ToastPosition::TopRight => (
             Val::Auto,
@@ -173,12 +251,7 @@ fn anchor_for(
         ),
         ToastPosition::BottomCenter => {
             let mid_left = (window.x * 0.5) - 178.0;
-            (
-                Val::Px(mid_left),
-                Val::Auto,
-                Val::Auto,
-                Val::Px(v_offset),
-            )
+            (Val::Px(mid_left), Val::Auto, Val::Auto, Val::Px(v_offset))
         }
         ToastPosition::BottomRight => (
             Val::Auto,
@@ -189,17 +262,151 @@ fn anchor_for(
     }
 }
 
-/// Helper used by the spawn module — exposed as `pub(super)` so the
-/// systems module can reach in without a circular import.
+/// Spawn the UI tree:
+/// ```text
+/// root (column, padded card)
+///   ├── header row (icon + text column)
+///   │     ├── accent dot
+///   │     └── text column (title? + message)
+///   └── progress-bar track (optional)
+///         └── fill (width updated each frame)
+/// ```
+#[allow(clippy::too_many_arguments)]
+fn spawn_subtree(
+    commands: &mut Commands,
+    toast_entity: Entity,
+    variant: ToastVariant,
+    message: &ToastMessage,
+    title: Option<&ToastTitle>,
+    show_progress: bool,
+    width: f32,
+    palette: &ColorPalette,
+    typography: &Typography,
+    font: &FontHandle,
+) -> ToastNodes {
+    let accent = variant_color(palette, variant);
+    let label_font = font.text_font(typography.sm);
+    let title_font = font.text_font(typography.base);
+
+    let root = commands
+        .spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                width: Val::Px(width),
+                flex_direction: FlexDirection::Column,
+                padding: UiRect::all(Val::Px(TOAST_PADDING)),
+                border_radius: BorderRadius::all(Val::Px(TOAST_CORNER_RADIUS)),
+                border: UiRect::all(Val::Px(1.0)),
+                row_gap: Val::Px(TOAST_SPACING),
+                ..default()
+            },
+            BackgroundColor(palette.popover),
+            BorderColor::all(palette.border),
+            GlobalZIndex(Z_TOAST),
+            bevy::picking::Pickable::IGNORE,
+            Name::new(format!("tempera::toast::ui({toast_entity:?})")),
+        ))
+        .id();
+
+    // Header row — accent dot + text column.
+    let header = commands
+        .spawn((
+            Node {
+                flex_direction: FlexDirection::Row,
+                column_gap: Val::Px(TOAST_SPACING),
+                align_items: AlignItems::Start,
+                ..default()
+            },
+            BackgroundColor(Color::NONE),
+            ChildOf(root),
+        ))
+        .id();
+
+    commands.spawn((
+        Node {
+            width: Val::Px(8.0),
+            height: Val::Px(8.0),
+            margin: UiRect::top(Val::Px(6.0)),
+            border_radius: BorderRadius::MAX,
+            ..default()
+        },
+        BackgroundColor(accent),
+        ChildOf(header),
+    ));
+
+    let text_col = commands
+        .spawn((
+            Node {
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(2.0),
+                flex_grow: 1.0,
+                ..default()
+            },
+            BackgroundColor(Color::NONE),
+            ChildOf(header),
+        ))
+        .id();
+
+    let title_text = title.map(|t| {
+        commands
+            .spawn((
+                Text::new(t.0.clone()),
+                title_font,
+                TextColor(palette.foreground),
+                ChildOf(text_col),
+            ))
+            .id()
+    });
+
+    let message_text = commands
+        .spawn((
+            Text::new(message.0.clone()),
+            label_font,
+            TextColor(palette.muted_foreground),
+            ChildOf(text_col),
+        ))
+        .id();
+
+    let progress_fill = show_progress.then(|| {
+        let track = commands
+            .spawn((
+                Node {
+                    width: Val::Percent(100.0),
+                    height: Val::Px(PROGRESS_HEIGHT),
+                    border_radius: BorderRadius::all(Val::Px(PROGRESS_HEIGHT * 0.5)),
+                    ..default()
+                },
+                BackgroundColor(palette.muted),
+                ChildOf(root),
+            ))
+            .id();
+
+        commands
+            .spawn((
+                Node {
+                    width: Val::Percent(0.0),
+                    height: Val::Percent(100.0),
+                    border_radius: BorderRadius::all(Val::Px(PROGRESS_HEIGHT * 0.5)),
+                    ..default()
+                },
+                BackgroundColor(accent),
+                ChildOf(track),
+            ))
+            .id()
+    });
+
+    ToastNodes {
+        root,
+        message_text,
+        title_text,
+        progress_fill,
+    }
+}
+
 #[inline]
-pub(super) fn variant_color(palette: &ColorPalette, variant: ToastVariant) -> Color {
+fn variant_color(palette: &ColorPalette, variant: ToastVariant) -> Color {
     match variant {
         ToastVariant::Default => palette.foreground,
         ToastVariant::Destructive => palette.destructive,
     }
 }
-
-pub(super) const TOAST_PADDING_LOGICAL: f32 = TOAST_PADDING;
-pub(super) const TOAST_CORNER_RADIUS_LOGICAL: f32 = TOAST_CORNER_RADIUS;
-pub(super) const TOAST_SPACING_LOGICAL: f32 = TOAST_SPACING;
-pub(super) const PROGRESS_HEIGHT_LOGICAL: f32 = PROGRESS_HEIGHT;
