@@ -2,13 +2,15 @@
 
 use bevy::prelude::*;
 
+use crate::kbd::KbdChord;
+
 /// One menu entry. `id` is opaque to the menu — it's echoed back via
 /// [`super::MenuItemActivated`] so the caller can route the click.
 #[derive(Debug, Clone)]
 pub struct MenuItemSpec {
     pub id: String,
     pub label: String,
-    pub shortcut: Option<String>,
+    pub shortcut: Option<KbdChord>,
     pub destructive: bool,
     pub separator_before: bool,
     pub enabled: bool,
@@ -33,8 +35,8 @@ impl MenuItemSpec {
     }
 
     #[must_use]
-    pub fn shortcut(mut self, shortcut: impl Into<String>) -> Self {
-        self.shortcut = Some(shortcut.into());
+    pub fn shortcut(mut self, chord: impl Into<KbdChord>) -> Self {
+        self.shortcut = Some(chord.into());
         self
     }
 

@@ -6,7 +6,6 @@ use super::components::{
     Command, CommandEmpty, CommandGroup, CommandGroupHeading, CommandInputRow, CommandItem,
     CommandItemSpec, CommandList, CommandSection, CommandSelection,
 };
-use crate::kbd::KbdKey;
 use crate::text_input::{spawn_text_input, TextInputStyle};
 use crate::theme::{ColorPalette, FontHandle, Spacing, Typography};
 
@@ -330,41 +329,14 @@ fn spawn_item(
     // Shortcut chip — inline kbd-like rendering. Right-aligned via
     // `flex_grow: 1` on the label above pushing this to the end.
     if let Some(chord) = spec.shortcut {
-        spawn_shortcut(commands, item, &chord, style);
-    }
-}
-
-fn spawn_shortcut(
-    commands: &mut Commands,
-    parent: Entity,
-    chord: &crate::kbd::KbdChord,
-    style: &CommandStyle,
-) {
-    let row = commands
-        .spawn((
-            Node {
-                flex_direction: FlexDirection::Row,
-                column_gap: Val::Px(2.0),
-                align_items: AlignItems::Center,
-                ..default()
-            },
-            BackgroundColor(Color::NONE),
-            ChildOf(parent),
-        ))
-        .id();
-
-    for segment in chord.render_order() {
-        let display: String = match segment {
-            KbdKey::Modifier(m) => crate::kbd::modifier_glyph(*m).to_string(),
-            KbdKey::Key(k) => crate::kbd::key_glyph(*k),
-        };
-        commands.spawn((
-            Text::new(display),
-            style.font.text_font(style.typography.xs),
-            TextColor(style.palette.muted_foreground),
-            bevy::picking::Pickable::IGNORE,
-            ChildOf(row),
-        ));
+        crate::kbd::spawn_chord_inline(
+            commands,
+            item,
+            &chord,
+            &style.font,
+            &style.typography,
+            style.palette.muted_foreground,
+        );
     }
 }
 

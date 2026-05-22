@@ -141,6 +141,44 @@ impl From<ButtonlikeChord> for KbdChord {
     }
 }
 
+/// Spawn an inline row of flat glyph-text segments for a [`KbdChord`].
+/// Returns the row entity. Use this when the chord should read as part
+/// of the surrounding list-row text (palette / context-menu items) —
+/// for the bordered "kbd"-style chip render, use [`spawn_kbd`] instead.
+pub fn spawn_chord_inline(
+    commands: &mut Commands,
+    parent: Entity,
+    chord: &KbdChord,
+    font: &FontHandle,
+    typography: &Typography,
+    color: Color,
+) -> Entity {
+    let row = commands
+        .spawn((
+            Node {
+                flex_direction: FlexDirection::Row,
+                column_gap: Val::Px(2.0),
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            BackgroundColor(Color::NONE),
+            ChildOf(parent),
+        ))
+        .id();
+
+    for segment in chord.render_order() {
+        commands.spawn((
+            Text::new(segment.glyph()),
+            font.text_font(typography.xs),
+            TextColor(color),
+            bevy::picking::Pickable::IGNORE,
+            ChildOf(row),
+        ));
+    }
+
+    row
+}
+
 /// Spawn a row of styled chips for a `KbdChord`. Returns the row
 /// entity so the caller can re-parent it.
 pub fn spawn_kbd(commands: &mut Commands, style: &KbdStyle, chord: impl Into<KbdChord>) -> Entity {

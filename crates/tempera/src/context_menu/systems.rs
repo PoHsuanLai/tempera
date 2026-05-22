@@ -204,13 +204,14 @@ fn spawn_item(
     ));
 
     if let Some(chord) = &spec.shortcut {
-        commands.spawn((
-            Text::new(chord.clone()),
-            style.shortcut_font(),
-            TextColor(style.palette.muted_foreground),
-            Pickable::IGNORE,
-            ChildOf(row),
-        ));
+        crate::kbd::spawn_chord_inline(
+            commands,
+            row,
+            chord,
+            &style.font,
+            &style.typography,
+            style.palette.muted_foreground,
+        );
     }
 }
 
