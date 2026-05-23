@@ -4,8 +4,14 @@ use bevy::prelude::*;
 
 use crate::kbd::KbdChord;
 
-/// One menu entry. `id` is opaque to the menu — it's echoed back via
-/// [`super::MenuItemActivated`] so the caller can route the click.
+/// One menu entry.
+///
+/// `id` is a string handle echoed back via [`super::MenuItemActivated`]
+/// — useful for callers that route by name. `origin` carries an
+/// optional ECS entity that owns the item's *definition* (e.g. a
+/// `InContextMenu` registry entity, or any caller-side identity); when
+/// set, the same entity is reported on activation so callers can
+/// attach behavior directly to it and skip the string lookup.
 #[derive(Debug, Clone)]
 pub struct MenuItemSpec {
     pub id: String,
@@ -14,6 +20,11 @@ pub struct MenuItemSpec {
     pub destructive: bool,
     pub separator_before: bool,
     pub enabled: bool,
+    /// Optional caller-side "definition" entity. Echoed back via
+    /// [`super::MenuItemActivated::entity`]. Lets the caller attach
+    /// activation logic as components on the entity instead of routing
+    /// through a string-keyed registry.
+    pub origin: Option<Entity>,
 }
 
 impl MenuItemSpec {
@@ -25,7 +36,16 @@ impl MenuItemSpec {
             destructive: false,
             separator_before: false,
             enabled: true,
+            origin: None,
         }
+    }
+
+    /// Attach a caller-side definition entity. When the user activates
+    /// the item, [`super::MenuItemActivated::entity`] will be `Some(this)`.
+    #[must_use]
+    pub fn origin(mut self, entity: Entity) -> Self {
+        self.origin = Some(entity);
+        self
     }
 
     #[must_use]

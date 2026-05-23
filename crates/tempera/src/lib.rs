@@ -124,24 +124,38 @@ pub struct TemperaPlugin;
 impl Plugin for TemperaPlugin {
     fn build(&self, app: &mut App) {
         // Each widget plugin pulls ThemePlugin itself (idempotent via
-        // is_plugin_added), so the aggregate just adds the widgets.
-        app.add_plugins(cursor::CursorPlugin);
-        app.add_plugins(context_menu::ContextMenuPlugin);
-        app.add_plugins(button::ButtonStylePlugin);
-        app.add_plugins(slider::SliderStylePlugin);
-        app.add_plugins(checkbox::CheckboxStylePlugin);
-        app.add_plugins(switch::SwitchStylePlugin);
-        app.add_plugins(toggle_group::ToggleGroupStylePlugin);
-        app.add_plugins(separator::SeparatorPlugin);
-        app.add_plugins(progress::ProgressPlugin);
-        app.add_plugins(kbd::KbdPlugin);
-        app.add_plugins(tabs::TabsPlugin);
-        app.add_plugins(dialog::DialogPlugin);
-        app.add_plugins(dropdown_menu::DropdownMenuPlugin);
-        app.add_plugins(text_input::TextInputStylePlugin);
-        app.add_plugins(number_field::NumberFieldPlugin);
-        app.add_plugins(tooltip::TooltipPlugin);
-        app.add_plugins(toast::ToastPlugin);
-        app.add_plugins(command::CommandPlugin);
+        // is_plugin_added). Bevy panics on duplicate plugin add, so we
+        // guard each sub-plugin too — downstream apps may have already
+        // cherry-picked some of these (or another tempera-consuming
+        // dependency may have done so transitively).
+        add_once::<cursor::CursorPlugin>(app, || cursor::CursorPlugin);
+        add_once::<context_menu::ContextMenuPlugin>(app, || context_menu::ContextMenuPlugin);
+        add_once::<button::ButtonStylePlugin>(app, || button::ButtonStylePlugin);
+        add_once::<slider::SliderStylePlugin>(app, || slider::SliderStylePlugin);
+        add_once::<checkbox::CheckboxStylePlugin>(app, || checkbox::CheckboxStylePlugin);
+        add_once::<switch::SwitchStylePlugin>(app, || switch::SwitchStylePlugin);
+        add_once::<toggle_group::ToggleGroupStylePlugin>(
+            app,
+            || toggle_group::ToggleGroupStylePlugin,
+        );
+        add_once::<separator::SeparatorPlugin>(app, || separator::SeparatorPlugin);
+        add_once::<progress::ProgressPlugin>(app, || progress::ProgressPlugin);
+        add_once::<kbd::KbdPlugin>(app, || kbd::KbdPlugin);
+        add_once::<tabs::TabsPlugin>(app, || tabs::TabsPlugin);
+        add_once::<dialog::DialogPlugin>(app, || dialog::DialogPlugin);
+        add_once::<dropdown_menu::DropdownMenuPlugin>(app, || dropdown_menu::DropdownMenuPlugin);
+        add_once::<text_input::TextInputStylePlugin>(app, || text_input::TextInputStylePlugin);
+        add_once::<number_field::NumberFieldPlugin>(app, || number_field::NumberFieldPlugin);
+        add_once::<tooltip::TooltipPlugin>(app, || tooltip::TooltipPlugin);
+        add_once::<toast::ToastPlugin>(app, || toast::ToastPlugin);
+        add_once::<command::CommandPlugin>(app, || command::CommandPlugin);
+    }
+}
+
+/// `app.add_plugins(p)` is fatal on duplicates. This helper skips the
+/// add when the same plugin type has already been registered.
+fn add_once<P: Plugin>(app: &mut App, ctor: impl FnOnce() -> P) {
+    if !app.is_plugin_added::<P>() {
+        app.add_plugins(ctor());
     }
 }

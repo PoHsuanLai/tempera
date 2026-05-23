@@ -234,6 +234,14 @@ pub(crate) fn variant_visuals(variant: ButtonVariant, palette: &ColorPalette) ->
             border_width: 0.0,
             fg_resting: palette.foreground,
         },
+        ButtonVariant::Bare => VariantVisuals {
+            bg_resting: Color::NONE,
+            bg_hover: Color::NONE,
+            bg_pressed: Color::NONE,
+            border_resting: Color::NONE,
+            border_width: 0.0,
+            fg_resting: palette.foreground,
+        },
         ButtonVariant::Link => VariantVisuals {
             bg_resting: Color::NONE,
             bg_hover: Color::NONE,

@@ -180,6 +180,7 @@ fn spawn_item(
         BevyMenuItem,
         TemperaMenuItem {
             id: spec.id.clone(),
+            origin: spec.origin,
         },
         Button,
         row_node,
@@ -260,6 +261,7 @@ pub fn on_activate(
     if let Ok(item) = items.get(trigger.entity) {
         writer.write(MenuItemActivated {
             id: item.id.clone(),
+            entity: item.origin,
         });
     }
 }

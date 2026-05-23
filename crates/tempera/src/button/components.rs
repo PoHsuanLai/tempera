@@ -49,6 +49,10 @@ pub enum ButtonVariant {
     Outline,
     /// Transparent background, no border — paints on hover only.
     Ghost,
+    /// Transparent everywhere — no surface fill on hover or press. Pair
+    /// with [`IconTint`] for icon-only action glyphs that only shift
+    /// tint on hover (Plasticity's inline outliner action buttons).
+    Bare,
     /// Text-only, underline on hover.
     Link,
     /// Filled with `destructive` color (delete / danger actions).

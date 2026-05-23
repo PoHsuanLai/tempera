@@ -67,11 +67,17 @@ pub use request::{MenuItemSpec, MenuRequest};
 #[derive(Message, Debug, Clone)]
 pub struct OpenContextMenu(pub MenuRequest);
 
-/// Message: the user clicked or keyboard-activated an item. Carries
-/// the string id supplied via [`MenuItemSpec::new`].
+/// Message: the user clicked or keyboard-activated an item.
+///
+/// Carries both the string `id` supplied via [`MenuItemSpec::new`]
+/// and the caller-side definition `entity` from
+/// [`MenuItemSpec::origin`] (when set). Routers can match on
+/// whichever is more convenient; `entity` is preferred when the
+/// caller wants to attach activation behavior as components.
 #[derive(Message, Debug, Clone)]
 pub struct MenuItemActivated {
     pub id: String,
+    pub entity: Option<Entity>,
 }
 
 pub struct ContextMenuPlugin;

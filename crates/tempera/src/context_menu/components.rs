@@ -19,10 +19,15 @@ pub struct MenuRootMarker {
     pub opened_at_frame: u32,
 }
 
-/// Carries the caller-supplied string id for a menu row. Sits next
-/// to Bevy's [`bevy::ui_widgets::menu::MenuItem`] marker; the latter
-/// drives focus/keyboard/click behavior, this carries our identity.
+/// Carries the caller-supplied string id and optional definition
+/// entity for a menu row. Sits next to Bevy's
+/// [`bevy::ui_widgets::menu::MenuItem`] marker; the latter drives
+/// focus/keyboard/click behavior, this carries our identity so
+/// activation can be routed back to the caller.
 #[derive(Component)]
 pub struct TemperaMenuItem {
     pub id: String,
+    /// Mirrors [`super::request::MenuItemSpec::origin`] — the
+    /// caller-side definition entity. Echoed back on activation.
+    pub origin: Option<Entity>,
 }
