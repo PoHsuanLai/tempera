@@ -35,35 +35,59 @@ impl Default for HoverCursor {
     }
 }
 
-/// Write the appropriate cursor onto the primary window each frame:
-/// the cursor of the most-recently-hovered tagged entity, or
-/// `Default` if none are hovered.
+/// Tracks whether tempera's cursor system is the current owner of the
+/// primary window's [`CursorIcon`]. Used by [`drive_window_cursor`] to
+/// release ownership exactly once when the last hovered widget goes
+/// idle, instead of stomping the window cursor every frame.
+#[derive(Resource, Default)]
+pub(crate) struct WindowCursorOwned(bool);
+
+/// Write the appropriate cursor onto the primary window when a tempera
+/// widget is hovered.
+///
+/// Tempera writes only while it has something to say. When a
+/// `HoverCursor`-tagged entity is hovered or pressed, it owns the
+/// window cursor and writes its preferred icon. When the last hovered
+/// widget goes idle, tempera releases ownership by writing
+/// `SystemCursorIcon::Default` exactly once — after that the window is
+/// left alone so any other system in the app (editor cursor, custom
+/// host cursor, etc.) can drive it without fighting over the value
+/// every frame.
 pub(crate) fn drive_window_cursor(
     hovered: Query<(&Interaction, &HoverCursor)>,
     primary: Query<Entity, With<PrimaryWindow>>,
+    mut owned: ResMut<WindowCursorOwned>,
     mut commands: Commands,
 ) {
     let Ok(window) = primary.single() else {
         return;
     };
 
-    let mut desired = SystemCursorIcon::Default;
-    for (interaction, cursor) in &hovered {
-        if matches!(interaction, Interaction::Hovered | Interaction::Pressed) {
-            desired = cursor.0;
-            break;
-        }
-    }
+    let active = hovered.iter().find_map(|(interaction, cursor)| {
+        matches!(interaction, Interaction::Hovered | Interaction::Pressed).then_some(cursor.0)
+    });
 
-    commands
-        .entity(window)
-        .insert(CursorIcon::System(desired));
+    match (active, owned.0) {
+        (Some(icon), _) => {
+            commands.entity(window).insert(CursorIcon::System(icon));
+            owned.0 = true;
+        }
+        (None, true) => {
+            // Release: write Default once, then back off so others can drive.
+            commands
+                .entity(window)
+                .insert(CursorIcon::System(SystemCursorIcon::Default));
+            owned.0 = false;
+        }
+        (None, false) => {}
+    }
 }
 
 pub struct CursorPlugin;
 
 impl Plugin for CursorPlugin {
     fn build(&self, app: &mut App) {
+        app.init_resource::<WindowCursorOwned>();
         app.add_systems(Update, drive_window_cursor);
     }
 }
