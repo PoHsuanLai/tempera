@@ -95,8 +95,9 @@ pub mod prelude {
         spawn_progress, Progress, ProgressFill, ProgressPlugin, ProgressStyle, ProgressValue,
     };
     pub use crate::number_field::{
-        spawn_number_field, NumberField, NumberFieldKind, NumberFieldPlugin, NumberFieldRange,
-        NumberFieldStep, NumberFieldStyle, NumberFieldValue,
+        spawn_number_field, spawn_number_field_configured, NumberField, NumberFieldConfig,
+        NumberFieldKind, NumberFieldPlugin, NumberFieldRange, NumberFieldStep, NumberFieldStyle,
+        NumberFieldValue,
     };
     pub use crate::separator::{
         spawn_separator, SeparatorAxis, SeparatorPlugin, SeparatorStyle,
