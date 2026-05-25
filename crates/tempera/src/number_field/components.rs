@@ -36,6 +36,11 @@ impl Default for NumberFieldStep {
     }
 }
 
+/// Display precision (decimal digits). When absent, Rust's default
+/// float formatting is used.
+#[derive(Component, Clone, Copy, Debug)]
+pub struct NumberFieldPrecision(pub usize);
+
 /// Tag on the stepper Buttons.
 #[derive(Component, Clone, Copy, Debug)]
 pub enum NumberFieldKind {
