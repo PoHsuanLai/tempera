@@ -25,6 +25,9 @@ pub struct MenuItemSpec {
     /// activation logic as components on the entity instead of routing
     /// through a string-keyed registry.
     pub origin: Option<Entity>,
+    /// Child items. When non-empty, this item renders a "▸" arrow and
+    /// opens a submenu on hover.
+    pub children: Vec<MenuItemSpec>,
 }
 
 impl MenuItemSpec {
@@ -37,6 +40,7 @@ impl MenuItemSpec {
             separator_before: false,
             enabled: true,
             origin: None,
+            children: Vec::new(),
         }
     }
 
@@ -76,6 +80,16 @@ impl MenuItemSpec {
     pub const fn disabled(mut self) -> Self {
         self.enabled = false;
         self
+    }
+
+    #[must_use]
+    pub fn children(mut self, items: Vec<MenuItemSpec>) -> Self {
+        self.children = items;
+        self
+    }
+
+    pub fn has_children(&self) -> bool {
+        !self.children.is_empty()
     }
 }
 

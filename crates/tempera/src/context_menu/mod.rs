@@ -59,7 +59,7 @@ mod components;
 mod request;
 mod systems;
 
-pub use components::{MenuRootMarker, TemperaMenuItem};
+pub use components::{HasSubMenu, MenuRootMarker, SubMenuOf, TemperaMenuItem};
 pub use request::{MenuItemSpec, MenuRequest};
 
 /// Message: open a context menu at a window-space position. Any
@@ -113,6 +113,7 @@ impl Plugin for ContextMenuPlugin {
                 (
                     systems::open_requested_menus,
                     systems::seed_focus_on_open,
+                    systems::manage_submenus,
                     systems::paint_item_highlight,
                     systems::dismiss_on_outside_right_click,
                 )

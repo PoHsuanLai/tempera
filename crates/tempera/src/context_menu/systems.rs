@@ -12,12 +12,12 @@ use bevy::ui::{FocusPolicy, InteractionDisabled};
 use bevy::ui_widgets::{Activate, MenuAction, MenuEvent, MenuItem as BevyMenuItem, MenuPopup};
 use bevy::window::PrimaryWindow;
 
-use super::components::{MenuRootMarker, TemperaMenuItem};
+use super::components::{HasSubMenu, MenuRootMarker, SubMenuOf, TemperaMenuItem};
 use super::request::{MenuItemSpec, MenuRequest};
 use super::{MenuItemActivated, OpenContextMenu};
 use crate::theme::MenuStyle;
 
-const Z_MENU: i32 = 1000;
+const Z_MENU: i32 = 3000;
 const WINDOW_PADDING: f32 = 4.0;
 
 // ---------------------------------------------------------------------------
@@ -35,6 +35,7 @@ pub fn open_requested_menus(
     let Some(OpenContextMenu(request)) = events.read().last().cloned() else {
         return;
     };
+    info!("[context_menu] open_requested_menus: anchor={:?}, {} items", request.anchor, request.items.len());
 
     for e in &existing {
         commands.entity(e).try_despawn();
@@ -176,6 +177,8 @@ fn spawn_item(
         ..default()
     };
 
+    let has_children = spec.has_children();
+
     let mut row_cmds = commands.spawn((
         BevyMenuItem,
         TemperaMenuItem {
@@ -188,10 +191,14 @@ fn spawn_item(
         ChildOf(parent),
     ));
 
-    if spec.enabled {
+    if spec.enabled && !has_children {
         row_cmds.insert(TabIndex(tab_index));
-    } else {
+    } else if !spec.enabled {
         row_cmds.insert(InteractionDisabled);
+    }
+
+    if has_children {
+        row_cmds.insert(HasSubMenu(spec.children.clone()));
     }
 
     let row = row_cmds.id();
@@ -204,7 +211,15 @@ fn spawn_item(
         ChildOf(row),
     ));
 
-    if let Some(chord) = &spec.shortcut {
+    if has_children {
+        commands.spawn((
+            Text::new("\u{25B8}"),
+            style.body_font(),
+            TextColor(style.palette.muted_foreground),
+            Pickable::IGNORE,
+            ChildOf(row),
+        ));
+    } else if let Some(chord) = &spec.shortcut {
         crate::kbd::spawn_chord_inline(
             commands,
             row,
@@ -213,6 +228,84 @@ fn spawn_item(
             &style.typography,
             style.palette.muted_foreground,
         );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Submenu open / close on hover
+// ---------------------------------------------------------------------------
+
+pub fn manage_submenus(
+    mut commands: Commands,
+    hover_items: Query<
+        (Entity, &Interaction, &HasSubMenu, &ComputedNode, &GlobalTransform),
+        Changed<Interaction>,
+    >,
+    existing_subs: Query<(Entity, &SubMenuOf)>,
+    style: MenuStyle,
+) {
+    for (item_entity, interaction, sub, node, transform) in hover_items.iter() {
+        match interaction {
+            Interaction::Hovered | Interaction::Pressed => {
+                // Already open for this item?
+                let already_open = existing_subs
+                    .iter()
+                    .any(|(_, parent)| parent.0 == item_entity);
+                if already_open {
+                    continue;
+                }
+
+                // Close any other open submenus.
+                for (sub_entity, _) in existing_subs.iter() {
+                    commands.entity(sub_entity).try_despawn();
+                }
+
+                // Position the submenu to the right of this item.
+                let center = transform.translation().truncate();
+                let half = node.size() * 0.5;
+                let anchor = Vec2::new(center.x + half.x, center.y - half.y);
+
+                let sub_root = commands
+                    .spawn((
+                        MenuPopup::default(),
+                        SubMenuOf(item_entity),
+                        Node {
+                            position_type: PositionType::Absolute,
+                            left: Val::Px(anchor.x),
+                            top: Val::Px(anchor.y),
+                            width: Val::Px(style.menu.width),
+                            flex_direction: FlexDirection::Column,
+                            padding: UiRect::all(Val::Px(4.0)),
+                            border: UiRect::all(Val::Px(style.menu.border_width)),
+                            border_radius: BorderRadius::all(Val::Px(style.menu.corner_radius)),
+                            ..default()
+                        },
+                        BackgroundColor(style.palette.popover),
+                        BorderColor::all(style.palette.border),
+                        GlobalZIndex(Z_MENU + 1),
+                        FocusPolicy::Block,
+                        Name::new("tempera::context_submenu"),
+                    ))
+                    .id();
+
+                let mut tab_index = 0i32;
+                for (idx, child_spec) in sub.0.iter().enumerate() {
+                    if child_spec.separator_before && idx > 0 {
+                        spawn_separator(&mut commands, sub_root, &style);
+                    }
+                    spawn_item(&mut commands, sub_root, child_spec, tab_index, &style);
+                    if child_spec.enabled {
+                        tab_index += 1;
+                    }
+                }
+            }
+            Interaction::None => {
+                // Don't close immediately — the user might be moving
+                // toward the submenu. The submenu itself has FocusPolicy::Block
+                // so it stays open while hovered. We close submenus when
+                // a *different* item becomes hovered (handled above).
+            }
+        }
     }
 }
 
@@ -306,7 +399,7 @@ pub fn seed_focus_on_open(
     frame: Res<FrameCount>,
 ) {
     for (entity, root) in &roots {
-        if root.opened_at_frame == frame.0 && focus.0.is_none() {
+        if root.opened_at_frame == frame.0 {
             focus.0 = Some(entity);
         }
     }
