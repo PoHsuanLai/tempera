@@ -41,3 +41,10 @@ pub struct SubMenuOf(pub Entity);
 /// the hover system can spawn them.
 #[derive(Component)]
 pub struct HasSubMenu(pub Vec<super::request::MenuItemSpec>);
+
+/// Marker on every entity inside a spawned submenu popup (the popup
+/// container and all its item rows). Used to distinguish submenu
+/// children from regular menu items so the close-on-hover observer
+/// doesn't dismiss the submenu when the cursor enters it.
+#[derive(Component)]
+pub struct SubMenuChild;

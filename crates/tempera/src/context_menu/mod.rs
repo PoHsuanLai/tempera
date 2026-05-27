@@ -59,7 +59,7 @@ mod components;
 mod request;
 mod systems;
 
-pub use components::{HasSubMenu, MenuRootMarker, SubMenuOf, TemperaMenuItem};
+pub use components::{HasSubMenu, MenuRootMarker, SubMenuChild, SubMenuOf, TemperaMenuItem};
 pub use request::{MenuItemSpec, MenuRequest};
 
 /// Message: open a context menu at a window-space position. Any
@@ -104,6 +104,8 @@ impl Plugin for ContextMenuPlugin {
             app.add_plugins(PopoverPlugin);
         }
 
+        systems::observe_submenu_hover(app);
+
         app.add_message::<OpenContextMenu>()
             .add_message::<MenuItemActivated>()
             .add_observer(systems::on_activate)
@@ -113,6 +115,7 @@ impl Plugin for ContextMenuPlugin {
                 (
                     systems::open_requested_menus,
                     systems::seed_focus_on_open,
+                    systems::tick_submenu_close_timers,
                     systems::manage_submenus,
                     systems::paint_item_highlight,
                     systems::dismiss_on_outside_right_click,
