@@ -180,7 +180,6 @@ fn spawn_item(
     let has_children = spec.has_children();
 
     let mut row_cmds = commands.spawn((
-        BevyMenuItem,
         TemperaMenuItem {
             id: spec.id.clone(),
             origin: spec.origin,
@@ -191,14 +190,20 @@ fn spawn_item(
         ChildOf(parent),
     ));
 
-    if spec.enabled && !has_children {
-        row_cmds.insert(TabIndex(tab_index));
-    } else if !spec.enabled {
-        row_cmds.insert(InteractionDisabled);
-    }
-
     if has_children {
         row_cmds.insert(HasSubMenu(spec.children.clone()));
+    } else {
+        // Only leaf items get BevyMenuItem (which fires Activate on
+        // click and triggers CloseAll). Submenu parents must not
+        // dismiss the menu on click.
+        row_cmds.insert(BevyMenuItem);
+        if spec.enabled {
+            row_cmds.insert(TabIndex(tab_index));
+        }
+    }
+
+    if !spec.enabled {
+        row_cmds.insert(InteractionDisabled);
     }
 
     let row = row_cmds.id();
@@ -213,7 +218,7 @@ fn spawn_item(
 
     if has_children {
         commands.spawn((
-            Text::new("\u{25B8}"),
+            Text::new("›"),
             style.body_font(),
             TextColor(style.palette.muted_foreground),
             Pickable::IGNORE,
@@ -320,7 +325,7 @@ pub fn paint_item_highlight(
     focus: Res<bevy::input_focus::InputFocus>,
     mut items: Query<
         (Entity, &Interaction, &mut BackgroundColor),
-        (With<TemperaMenuItem>, With<BevyMenuItem>),
+        With<TemperaMenuItem>,
     >,
     menu: Res<crate::theme::MenuTokens>,
 ) {
