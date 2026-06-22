@@ -22,7 +22,7 @@ pub(crate) fn repaint_text_input(
     all: Query<(Entity, &Interaction, Has<InteractionDisabled>), With<TextInput>>,
     mut borders: Query<&mut BorderColor, With<TextInput>>,
 ) {
-    let focused = focus.0;
+    let focused = focus.get();
 
     let mut handled: Vec<Entity> = Vec::new();
     for (entity, interaction, disabled) in &dirty {

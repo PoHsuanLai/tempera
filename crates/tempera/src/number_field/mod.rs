@@ -25,10 +25,9 @@ mod spawn;
 mod systems;
 
 pub use components::{
-    NumberField, NumberFieldConfig, NumberFieldKind, NumberFieldPrecision, NumberFieldRange,
-    NumberFieldStep, NumberFieldValue,
+    NumberField, NumberFieldKind, NumberFieldRange, NumberFieldStep, NumberFieldValue,
 };
-pub use spawn::{spawn_number_field, spawn_number_field_configured, NumberFieldStyle};
+pub use spawn::{spawn_number_field, NumberFieldStyle};
 pub use systems::NumberFieldValueChange as ValueChange;
 
 pub struct NumberFieldPlugin;

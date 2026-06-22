@@ -363,7 +363,7 @@ pub(crate) fn seed_focus_on_open(
     palettes: Query<Entity, Added<Command>>,
 ) {
     if let Ok(palette) = palettes.single() {
-        focus.set(palette);
+        focus.set(palette, bevy::input_focus::FocusCause::Navigated);
     }
 }
 

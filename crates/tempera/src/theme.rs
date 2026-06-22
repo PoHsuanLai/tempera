@@ -95,11 +95,11 @@ impl FontHandle {
     #[must_use]
     pub fn text_font(&self, size: f32) -> TextFont {
         let mut tf = TextFont {
-            font_size: size,
+            font_size: FontSize::Px(size),
             ..default()
         };
         if let Some(h) = &self.regular {
-            tf.font = h.clone();
+            tf.font = FontSource::Handle(h.clone());
         }
         tf
     }
@@ -109,13 +109,13 @@ impl FontHandle {
     #[must_use]
     pub fn text_font_bold(&self, size: f32) -> TextFont {
         let mut tf = TextFont {
-            font_size: size,
+            font_size: FontSize::Px(size),
             ..default()
         };
         if let Some(h) = &self.bold {
-            tf.font = h.clone();
+            tf.font = FontSource::Handle(h.clone());
         } else if let Some(h) = &self.regular {
-            tf.font = h.clone();
+            tf.font = FontSource::Handle(h.clone());
         }
         tf
     }

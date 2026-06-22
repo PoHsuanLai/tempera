@@ -36,7 +36,6 @@ pub mod dropdown_menu;
 pub mod kbd;
 pub mod number_field;
 pub mod progress;
-pub mod select;
 pub mod separator;
 pub mod slider;
 pub mod switch;
@@ -96,13 +95,8 @@ pub mod prelude {
         spawn_progress, Progress, ProgressFill, ProgressPlugin, ProgressStyle, ProgressValue,
     };
     pub use crate::number_field::{
-        spawn_number_field, spawn_number_field_configured, NumberField, NumberFieldConfig,
-        NumberFieldKind, NumberFieldPlugin, NumberFieldRange, NumberFieldStep, NumberFieldStyle,
-        NumberFieldValue,
-    };
-    pub use crate::select::{
-        spawn_select, Select, SelectOption, SelectOptions, SelectPlugin, SelectStyle, SelectValue,
-        ValueChange as SelectValueChange,
+        spawn_number_field, NumberField, NumberFieldKind, NumberFieldPlugin, NumberFieldRange,
+        NumberFieldStep, NumberFieldStyle, NumberFieldValue,
     };
     pub use crate::separator::{
         spawn_separator, SeparatorAxis, SeparatorPlugin, SeparatorStyle,
@@ -115,9 +109,9 @@ pub mod prelude {
     };
     pub use crate::tooltip::{Tooltip, TooltipArrow, TooltipPlugin, TooltipPopup, TooltipPosition};
     pub use crate::text_input::{
-        spawn_text_input, spawn_text_input_with_icon, SubmitText, TextInput, TextInputBuffer,
-        TextInputContents, TextInputFilter, TextInputHandle, TextInputMode, TextInputNode,
-        TextInputPrompt, TextInputStyle, TextInputStylePlugin,
+        spawn_text_input, SubmitText, TextInput, TextInputBuffer, TextInputContents,
+        TextInputFilter, TextInputHandle, TextInputMode, TextInputNode, TextInputPrompt,
+        TextInputStyle, TextInputStylePlugin,
     };
     pub use crate::theme::{
         ColorPalette, FontHandle, MenuStyle, MenuTokens, Spacing, ThemePlugin, Typography,
@@ -144,7 +138,6 @@ impl Plugin for TemperaPlugin {
             app,
             || toggle_group::ToggleGroupStylePlugin,
         );
-        add_once::<select::SelectPlugin>(app, || select::SelectPlugin);
         add_once::<separator::SeparatorPlugin>(app, || separator::SeparatorPlugin);
         add_once::<progress::ProgressPlugin>(app, || progress::ProgressPlugin);
         add_once::<kbd::KbdPlugin>(app, || kbd::KbdPlugin);

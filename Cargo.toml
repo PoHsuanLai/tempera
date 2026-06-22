@@ -3,14 +3,14 @@ resolver = "2"
 members = ["crates/tempera"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 authors = ["PoHsuan Lai"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/PoHsuanLai/tempera"
 
 [workspace.dependencies]
-bevy = { version = "0.18", default-features = false }
+bevy = { version = "0.19", default-features = false }
 
 [profile.dev.package."*"]
 opt-level = 3

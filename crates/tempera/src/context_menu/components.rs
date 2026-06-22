@@ -31,20 +31,3 @@ pub struct TemperaMenuItem {
     /// caller-side definition entity. Echoed back on activation.
     pub origin: Option<Entity>,
 }
-
-/// Marks a `MenuPopup` as a submenu spawned by a parent item.
-/// The entity field points to the parent menu item row that owns it.
-#[derive(Component)]
-pub struct SubMenuOf(pub Entity);
-
-/// Marks a menu item as having a submenu. Stores the child specs so
-/// the hover system can spawn them.
-#[derive(Component)]
-pub struct HasSubMenu(pub Vec<super::request::MenuItemSpec>);
-
-/// Marker on every entity inside a spawned submenu popup (the popup
-/// container and all its item rows). Used to distinguish submenu
-/// children from regular menu items so the close-on-hover observer
-/// doesn't dismiss the submenu when the cursor enters it.
-#[derive(Component)]
-pub struct SubMenuChild;

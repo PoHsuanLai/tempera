@@ -36,44 +36,9 @@ impl Default for NumberFieldStep {
     }
 }
 
-/// Display precision (decimal digits). When absent, Rust's default
-/// float formatting is used.
-#[derive(Component, Clone, Copy, Debug)]
-pub struct NumberFieldPrecision(pub usize);
-
 /// Tag on the stepper Buttons.
 #[derive(Component, Clone, Copy, Debug)]
 pub enum NumberFieldKind {
     Increment,
     Decrement,
-}
-
-/// Visual config for a NumberField. Controls the dimensions, colors,
-/// and rounding of the `[−] [value] [+]` strip. Callers pass the raw
-/// values they want — no semantic size variants.
-#[derive(Clone, Copy, Debug)]
-pub struct NumberFieldConfig {
-    pub input_width: f32,
-    pub input_bg: Color,
-    pub height: f32,
-    pub gap: f32,
-    pub bg: Color,
-    pub bg_hover: Color,
-    pub border_radius: f32,
-    pub stepper_width: f32,
-}
-
-impl Default for NumberFieldConfig {
-    fn default() -> Self {
-        Self {
-            input_width: 80.0,
-            input_bg: Color::NONE,
-            height: 28.0,
-            gap: 2.0,
-            bg: Color::NONE,
-            bg_hover: Color::NONE,
-            border_radius: 4.0,
-            stepper_width: 28.0,
-        }
-    }
 }
