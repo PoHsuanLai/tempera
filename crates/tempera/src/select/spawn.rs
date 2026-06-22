@@ -27,6 +27,7 @@ pub fn spawn_select(
         .map(|o| o.label.clone())
         .unwrap_or_default();
 
+    info!("[spawn_select] spawning Select with {} options, selected={}", options.len(), selected);
     let root = commands
         .spawn((
             Select,

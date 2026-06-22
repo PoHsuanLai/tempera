@@ -71,15 +71,35 @@ pub fn spawn_text_input(
     initial: impl Into<String>,
     placeholder: impl Into<String>,
 ) -> TextInputHandle {
+    spawn_text_input_inner(commands, style, initial, placeholder, None)
+}
+
+pub fn spawn_text_input_with_icon(
+    commands: &mut Commands,
+    style: &TextInputStyle,
+    initial: impl Into<String>,
+    placeholder: impl Into<String>,
+    icon: Handle<Image>,
+) -> TextInputHandle {
+    spawn_text_input_inner(commands, style, initial, placeholder, Some(icon))
+}
+
+const ICON_SIZE: f32 = 14.0;
+
+fn spawn_text_input_inner(
+    commands: &mut Commands,
+    style: &TextInputStyle,
+    initial: impl Into<String>,
+    placeholder: impl Into<String>,
+    icon: Option<Handle<Image>>,
+) -> TextInputHandle {
     let initial = initial.into();
     let placeholder = placeholder.into();
 
     let text_font = style.font.text_font(style.typography.sm);
-    // `LineHeight::RelativeToFont(1.2)` is the default applied by the
-    // upstream `TextInputNode` require chain. Mirror that here so the
-    // inner Node sizes itself exactly to the rendered text.
     let line_height = style.typography.sm * 1.2;
 
+    let has_icon = icon.is_some();
     let surround = commands
         .spawn((
             TextInput,
@@ -90,6 +110,7 @@ pub fn spawn_text_input(
                 border_radius: BorderRadius::all(Val::Px(style.spacing.corner_radius_small)),
                 padding: UiRect::horizontal(Val::Px(10.0)),
                 align_items: AlignItems::Center,
+                column_gap: if has_icon { Val::Px(8.0) } else { Val::ZERO },
                 ..default()
             },
             BackgroundColor(style.palette.background),
@@ -99,6 +120,20 @@ pub fn spawn_text_input(
             Name::new("tempera::text_input"),
         ))
         .id();
+
+    if let Some(icon) = icon {
+        commands.spawn((
+            ImageNode::new(icon).with_color(style.palette.muted_foreground),
+            Node {
+                width: Val::Px(ICON_SIZE),
+                height: Val::Px(ICON_SIZE),
+                flex_shrink: 0.0,
+                ..default()
+            },
+            bevy::picking::Pickable::IGNORE,
+            ChildOf(surround),
+        ));
+    }
 
     let mut inner = commands.spawn((
         TextInputNode {
