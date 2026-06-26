@@ -36,6 +36,7 @@ pub mod dropdown_menu;
 pub mod kbd;
 pub mod number_field;
 pub mod progress;
+pub mod select;
 pub mod separator;
 pub mod slider;
 pub mod switch;
@@ -97,6 +98,11 @@ pub mod prelude {
     pub use crate::number_field::{
         spawn_number_field, NumberField, NumberFieldKind, NumberFieldPlugin, NumberFieldRange,
         NumberFieldStep, NumberFieldStyle, NumberFieldValue,
+    };
+    // NB: `select::ValueChange` is intentionally not re-exported here — it would
+    // clash with `slider::ValueChange`. Import it via `tempera::select::ValueChange`.
+    pub use crate::select::{
+        spawn_select, Select, SelectOption, SelectOptions, SelectPlugin, SelectStyle, SelectValue,
     };
     pub use crate::separator::{
         spawn_separator, SeparatorAxis, SeparatorPlugin, SeparatorStyle,
