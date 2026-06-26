@@ -3,7 +3,8 @@ use bevy::prelude::*;
 use bevy::ui_widgets::Activate;
 
 use super::components::{
-    NumberField, NumberFieldKind, NumberFieldRange, NumberFieldStep, NumberFieldValue,
+    NumberField, NumberFieldKind, NumberFieldPrecision, NumberFieldRange, NumberFieldStep,
+    NumberFieldValue,
 };
 use crate::text_input::{
     TextInput, TextInputAction, TextInputContents, TextInputEdit, TextInputQueue,
@@ -59,11 +60,14 @@ pub(crate) fn stepper_on_activate(
 /// Layout is two levels: `NumberField → surround (TextInput marker) →
 /// inner (TextInputNode + TextInputContents)`.
 pub(crate) fn sync_buffer_from_value(
-    fields: Query<(&NumberFieldValue, &Children), (With<NumberField>, Changed<NumberFieldValue>)>,
+    fields: Query<
+        (&NumberFieldValue, &Children, Option<&NumberFieldPrecision>),
+        (With<NumberField>, Changed<NumberFieldValue>),
+    >,
     surrounds: Query<&Children, With<TextInput>>,
     mut inner: Query<(&TextInputContents, &mut TextInputQueue), Without<TextInput>>,
 ) {
-    for (value, kids) in &fields {
+    for (value, kids, precision) in &fields {
         for child in kids.iter() {
             let Ok(surround_kids) = surrounds.get(child) else {
                 continue;
@@ -72,7 +76,10 @@ pub(crate) fn sync_buffer_from_value(
                 let Ok((contents, mut queue)) = inner.get_mut(inner_id) else {
                     continue;
                 };
-                let formatted = format!("{}", value.0);
+                let formatted = match precision {
+                    Some(p) => format!("{:.prec$}", value.0, prec = p.0),
+                    None => format!("{}", value.0),
+                };
                 if contents.get() == formatted {
                     continue;
                 }
