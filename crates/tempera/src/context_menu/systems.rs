@@ -10,14 +10,15 @@ use bevy::picking::Pickable;
 use bevy::prelude::*;
 use bevy::ui::{FocusPolicy, InteractionDisabled};
 use bevy::ui_widgets::{Activate, MenuAction, MenuEvent, MenuItem as BevyMenuItem, MenuPopup};
+use bevy::ui::UiGlobalTransform;
 use bevy::window::PrimaryWindow;
 
-use super::components::{MenuRootMarker, TemperaMenuItem};
+use super::components::{HasSubMenu, MenuRootMarker, SubMenuChild, SubMenuOf, TemperaMenuItem};
 use super::request::{MenuItemSpec, MenuRequest};
 use super::{MenuItemActivated, OpenContextMenu};
 use crate::theme::MenuStyle;
 
-const Z_MENU: i32 = 1000;
+const Z_MENU: i32 = 3000;
 const WINDOW_PADDING: f32 = 4.0;
 
 // ---------------------------------------------------------------------------
@@ -35,7 +36,6 @@ pub fn open_requested_menus(
     let Some(OpenContextMenu(request)) = events.read().last().cloned() else {
         return;
     };
-
     for e in &existing {
         commands.entity(e).try_despawn();
     }
@@ -157,7 +157,7 @@ fn spawn_item(
     spec: &MenuItemSpec,
     tab_index: i32,
     style: &MenuStyle,
-) {
+) -> Entity {
     let fg = if !spec.enabled {
         style.palette.muted_foreground
     } else if spec.destructive {
@@ -176,8 +176,9 @@ fn spawn_item(
         ..default()
     };
 
+    let has_children = spec.has_children();
+
     let mut row_cmds = commands.spawn((
-        BevyMenuItem,
         TemperaMenuItem {
             id: spec.id.clone(),
             origin: spec.origin,
@@ -188,9 +189,19 @@ fn spawn_item(
         ChildOf(parent),
     ));
 
-    if spec.enabled {
-        row_cmds.insert(TabIndex(tab_index));
+    if has_children {
+        row_cmds.insert(HasSubMenu(spec.children.clone()));
     } else {
+        // Only leaf items get BevyMenuItem (which fires Activate on
+        // click and triggers CloseAll). Submenu parents must not
+        // dismiss the menu on click.
+        row_cmds.insert(BevyMenuItem);
+        if spec.enabled {
+            row_cmds.insert(TabIndex(tab_index));
+        }
+    }
+
+    if !spec.enabled {
         row_cmds.insert(InteractionDisabled);
     }
 
@@ -204,7 +215,15 @@ fn spawn_item(
         ChildOf(row),
     ));
 
-    if let Some(chord) = &spec.shortcut {
+    if has_children {
+        commands.spawn((
+            Text::new("›"),
+            style.body_font(),
+            TextColor(style.palette.muted_foreground),
+            Pickable::IGNORE,
+            ChildOf(row),
+        ));
+    } else if let Some(chord) = &spec.shortcut {
         crate::kbd::spawn_chord_inline(
             commands,
             row,
@@ -213,6 +232,207 @@ fn spawn_item(
             &style.typography,
             style.palette.muted_foreground,
         );
+    }
+
+    row
+}
+
+// ---------------------------------------------------------------------------
+// Submenu open / close on hover
+// ---------------------------------------------------------------------------
+
+/// Marker inserted on a HasSubMenu item when the pointer enters it.
+/// Cleared when the close timer fires. Drives submenu open/close.
+#[derive(Component)]
+pub(crate) struct SubMenuHovered;
+
+/// Delay before closing a submenu after the pointer leaves the parent
+/// item. Gives the user time to move the cursor into the submenu.
+#[derive(Component)]
+pub(crate) struct SubMenuCloseTimer {
+    pub deadline: f64,
+}
+
+const SUBMENU_CLOSE_DELAY: f64 = 0.15;
+
+pub fn observe_submenu_hover(app: &mut bevy::app::App) {
+    use bevy::picking::events::{Out, Over, Pointer};
+
+    // Pointer enters a HasSubMenu item → mark hovered, cancel any pending close.
+    app.add_observer(
+        |trigger: On<Pointer<Over>>,
+         mut commands: Commands,
+         q: Query<(), With<HasSubMenu>>| {
+            if q.contains(trigger.entity) {
+                commands
+                    .entity(trigger.entity)
+                    .insert(SubMenuHovered)
+                    .remove::<SubMenuCloseTimer>();
+            }
+        },
+    );
+
+    // Pointer leaves a HasSubMenu item → start close timer instead of
+    // removing SubMenuHovered immediately.
+    app.add_observer(
+        |trigger: On<Pointer<Out>>,
+         mut commands: Commands,
+         q: Query<(), With<HasSubMenu>>,
+         time: Res<Time>| {
+            if q.contains(trigger.entity) {
+                commands.entity(trigger.entity).insert(SubMenuCloseTimer {
+                    deadline: time.elapsed_secs_f64() + SUBMENU_CLOSE_DELAY,
+                });
+            }
+        },
+    );
+
+    // Pointer enters a submenu child → cancel the parent's close timer.
+    app.add_observer(
+        |trigger: On<Pointer<Over>>,
+         mut commands: Commands,
+         children: Query<(), With<SubMenuChild>>,
+         subs: Query<&SubMenuOf>,
+         timers: Query<(), With<SubMenuCloseTimer>>| {
+            if !children.contains(trigger.entity) {
+                return;
+            }
+            // Find which parent item owns this submenu and cancel its timer.
+            for sub in subs.iter() {
+                if timers.contains(sub.0) {
+                    commands.entity(sub.0).remove::<SubMenuCloseTimer>();
+                }
+            }
+        },
+    );
+
+    // Pointer enters a regular menu item (not a submenu parent, not
+    // inside a submenu) → close all submenus immediately.
+    app.add_observer(
+        |trigger: On<Pointer<Over>>,
+         mut commands: Commands,
+         items: Query<(), (With<TemperaMenuItem>, Without<HasSubMenu>, Without<SubMenuChild>)>,
+         subs: Query<Entity, With<SubMenuOf>>,
+         timers: Query<Entity, With<SubMenuCloseTimer>>| {
+            if items.contains(trigger.entity) {
+                for sub in subs.iter() {
+                    commands.entity(sub).try_despawn();
+                }
+                for timer_ent in timers.iter() {
+                    commands.entity(timer_ent).remove::<SubMenuCloseTimer>();
+                    commands.entity(timer_ent).remove::<SubMenuHovered>();
+                }
+            }
+        },
+    );
+}
+
+/// Tick close timers: when a timer fires, remove SubMenuHovered and
+/// despawn the associated submenu.
+pub fn tick_submenu_close_timers(
+    mut commands: Commands,
+    timers: Query<(Entity, &SubMenuCloseTimer)>,
+    subs: Query<(Entity, &SubMenuOf)>,
+    time: Res<Time>,
+) {
+    let now = time.elapsed_secs_f64();
+    for (item_entity, timer) in timers.iter() {
+        if now >= timer.deadline {
+            commands
+                .entity(item_entity)
+                .remove::<SubMenuCloseTimer>()
+                .remove::<SubMenuHovered>();
+            for (sub_entity, parent) in subs.iter() {
+                if parent.0 == item_entity {
+                    commands.entity(sub_entity).try_despawn();
+                }
+            }
+        }
+    }
+}
+
+pub fn manage_submenus(
+    mut commands: Commands,
+    hovered_items: Query<
+        (Entity, &HasSubMenu, &ComputedNode, &UiGlobalTransform),
+        With<SubMenuHovered>,
+    >,
+    existing_subs: Query<(Entity, &SubMenuOf)>,
+    menu_root: Query<(Entity, &ComputedNode, &UiGlobalTransform), With<MenuRootMarker>>,
+    windows: Query<&Window, With<PrimaryWindow>>,
+    style: MenuStyle,
+) {
+    let scale = windows
+        .single()
+        .map(|w| w.scale_factor())
+        .unwrap_or(1.0);
+
+    for (item_entity, sub, node, ui_gt) in hovered_items.iter() {
+        let already_open = existing_subs
+            .iter()
+            .any(|(_, parent)| parent.0 == item_entity);
+        if already_open {
+            continue;
+        }
+
+        let Ok((root_entity, root_node, root_gt)) = menu_root.single() else {
+            continue;
+        };
+
+        // Close any other open submenus.
+        for (sub_entity, _) in existing_subs.iter() {
+            commands.entity(sub_entity).try_despawn();
+        }
+
+        // All transforms are in physical pixels; convert to logical.
+        // UiGlobalTransform.translation is the node's center.
+        // Absolute children position from the parent's top-left corner.
+        let root_center = root_gt.translation / scale;
+        let root_half = root_node.size() / scale * 0.5;
+        let root_top_left = root_center - root_half;
+
+        let item_center = ui_gt.translation / scale;
+        let item_half = node.size() / scale * 0.5;
+
+        let anchor = Vec2::new(
+            item_center.x + item_half.x - root_top_left.x,
+            item_center.y - item_half.y - root_top_left.y,
+        );
+        let sub_root = commands
+            .spawn((
+                SubMenuOf(item_entity),
+                SubMenuChild,
+                ChildOf(root_entity),
+                Node {
+                    position_type: PositionType::Absolute,
+                    left: Val::Px(anchor.x),
+                    top: Val::Px(anchor.y),
+                    width: Val::Px(style.menu.width),
+                    flex_direction: FlexDirection::Column,
+                    padding: UiRect::all(Val::Px(4.0)),
+                    border: UiRect::all(Val::Px(style.menu.border_width)),
+                    border_radius: BorderRadius::all(Val::Px(style.menu.corner_radius)),
+                    ..default()
+                },
+                BackgroundColor(style.palette.popover),
+                BorderColor::all(style.palette.border),
+                GlobalZIndex(Z_MENU + 1),
+                FocusPolicy::Block,
+                Name::new("tempera::context_submenu"),
+            ))
+            .id();
+
+        let mut tab_index = 0i32;
+        for (idx, child_spec) in sub.0.iter().enumerate() {
+            if child_spec.separator_before && idx > 0 {
+                spawn_separator(&mut commands, sub_root, &style);
+            }
+            let item = spawn_item(&mut commands, sub_root, child_spec, tab_index, &style);
+            commands.entity(item).insert(SubMenuChild);
+            if child_spec.enabled {
+                tab_index += 1;
+            }
+        }
     }
 }
 
@@ -227,7 +447,7 @@ pub fn paint_item_highlight(
     focus: Res<bevy::input_focus::InputFocus>,
     mut items: Query<
         (Entity, &Interaction, &mut BackgroundColor),
-        (With<TemperaMenuItem>, With<BevyMenuItem>),
+        With<TemperaMenuItem>,
     >,
     menu: Res<crate::theme::MenuTokens>,
 ) {
@@ -306,7 +526,7 @@ pub fn seed_focus_on_open(
     frame: Res<FrameCount>,
 ) {
     for (entity, root) in &roots {
-        if root.opened_at_frame == frame.0 && focus.get().is_none() {
+        if root.opened_at_frame == frame.0 {
             focus.set(entity, bevy::input_focus::FocusCause::Navigated);
         }
     }
