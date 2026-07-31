@@ -43,3 +43,12 @@
 //! many rather than a privileged mechanism.
 
 #![forbid(unsafe_code)]
+
+pub mod chord;
+pub mod persist;
+
+pub use chord::{
+    Chord, SerializedChord, alt, cmd, cmd_shift, key, keycode_to_name, multi, name_to_keycode,
+    shift,
+};
+pub use persist::{SavedKeybinds, ScopeOverrides};
