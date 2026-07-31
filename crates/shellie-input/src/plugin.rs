@@ -3,6 +3,7 @@
 use bevy::prelude::*;
 
 use crate::command::{CommandRegistry, unregister_despawned_commands};
+use crate::dispatch::{HeldClaims, dispatch_commands, drain_held_claims, window_lost_focus};
 use crate::persist::SavedKeybinds;
 
 /// The application's name, used to namespace on-disk state.
@@ -37,13 +38,29 @@ impl Plugin for ShellieInputPlugin {
         app.insert_resource(AppName(self.app_name.clone()))
             .insert_resource(saved)
             .init_resource::<CommandRegistry>()
+            .init_resource::<HeldClaims>()
             // Registry upkeep is an observer rather than a system so a
             // despawned command's id is freed at the despawn, not a frame
             // later — otherwise a remove-then-re-add in one frame trips the
             // duplicate-id guard.
-            .add_observer(unregister_despawned_commands);
+            .add_observer(unregister_despawned_commands)
+            .add_systems(Update, dispatch_commands.in_set(CommandDispatch))
+            // Losing the window is the one way a held command can miss its
+            // release: the key comes up while another app has focus, so we
+            // never see it. Drain instead of stranding the claim.
+            .add_systems(
+                Update,
+                drain_held_claims
+                    .run_if(window_lost_focus)
+                    .after(CommandDispatch),
+            );
     }
 }
+
+/// The set [`dispatch_commands`] runs in, so an app can order its own systems
+/// around command handling.
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct CommandDispatch;
 
 #[cfg(test)]
 mod tests {

@@ -47,6 +47,7 @@
 pub mod chord;
 pub mod command;
 pub mod condition;
+pub mod dispatch;
 pub mod persist;
 pub mod plugin;
 
@@ -63,5 +64,6 @@ pub use command::{
     on_press_held, on_release,
 };
 pub use condition::{Priority, When};
+pub use dispatch::{HeldClaims, dispatch_commands, drain_held_claims};
 pub use persist::{SavedKeybinds, ScopeOverrides};
 pub use plugin::{AppName, ShellieInputPlugin};
