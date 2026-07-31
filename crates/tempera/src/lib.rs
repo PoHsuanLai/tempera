@@ -45,6 +45,7 @@ pub mod text_input;
 pub mod toast;
 pub mod toggle_group;
 pub mod tooltip;
+pub mod tree_row;
 
 pub use theme::{
     ColorPalette, FontHandle, MenuStyle, MenuTokens, Spacing, ThemePlugin, Typography,
@@ -83,6 +84,10 @@ pub mod prelude {
     pub use crate::dialog::{
         spawn_dialog, Dialog, DialogBackdrop, DialogCard, DialogClose, DialogConfig,
         DialogContent, DialogDismissed, DialogParts, DialogPlugin, DialogStyle,
+    };
+    pub use crate::tree_row::{
+        spawn_tree_row, ChevronState, TreeRow, TreeRowChevron, TreeRowExpanded, TreeRowHeader,
+        TreeRowLabel, TreeRowPlugin, TreeRowSpec, TreeRowStyle, TreeRowSuffix, TreeRowTokens,
     };
     pub use crate::dropdown_menu::{
         spawn_dropdown, DropdownMenuPlugin, DropdownStyle, DropdownTrigger,
@@ -155,6 +160,7 @@ impl Plugin for TemperaPlugin {
         add_once::<tooltip::TooltipPlugin>(app, || tooltip::TooltipPlugin);
         add_once::<toast::ToastPlugin>(app, || toast::ToastPlugin);
         add_once::<command::CommandPlugin>(app, || command::CommandPlugin);
+        add_once::<tree_row::TreeRowPlugin>(app, || tree_row::TreeRowPlugin);
     }
 }
 
