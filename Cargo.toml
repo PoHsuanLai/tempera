@@ -15,7 +15,7 @@
 # --workspace` must pass even while `dawai-model` is broken.
 [workspace]
 resolver = "2"
-members = ["crates/shellie-input"]
+members = ["crates/shellie-dock", "crates/shellie-input"]
 
 [workspace.package]
 version = "0.1.0"
@@ -41,10 +41,17 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 dirs = "6"
 tracing = "0.1"
+# Only the dock's persistence tests need this — `capture`/`apply` hand back a
+# `Serialize` type and never pick a format. Pinned to the version the app
+# already writes sidecars with, so the round-trip test exercises the real
+# on-disk shape rather than a lookalike.
+ron = "0.12"
 
 # tempera is the bevy_ui widget library the whole shell renders with. shellie
-# needs it only for `kbd::KbdChord` — the display-side lowering of a chord —
-# so keybind hints can render as keycaps.
+# uses it for its design tokens and a little display-side lowering:
+# `kbd::KbdChord` renders a keybind hint as keycaps, and `theme::ColorPalette`
+# is where the dock gets its divider tint. Taking the palette from tempera is
+# what lets shellie theme itself without a host-supplied theme trait.
 tempera = { git = "https://github.com/PoHsuanLai/tempera.git", rev = "40b820c" }
 
 # Bevy is unusable in pure debug. Optimize third-party deps even in dev so a

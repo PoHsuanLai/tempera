@@ -4526,6 +4526,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "shellie-dock"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "ron",
+ "serde",
+ "tempera",
+ "tracing",
+]
+
+[[package]]
 name = "shellie-input"
 version = "0.1.0"
 dependencies = [
