@@ -23,7 +23,7 @@ fn test_app(layout: DockLayout) -> App {
     app
 }
 
-fn dawai_shaped_tree() -> DockLayout {
+fn ide_shaped_tree() -> DockLayout {
     DockLayout::new(DockTree::split(
         Axis::Column,
         [
@@ -47,7 +47,7 @@ fn pane_ids(layout: &DockLayout) -> Vec<String> {
 
 #[test]
 fn a_declared_tree_is_queryable_after_one_frame() {
-    let mut app = test_app(dawai_shaped_tree());
+    let mut app = test_app(ide_shaped_tree());
     app.update();
 
     let registry = app.world().resource::<PaneRegistry>();
@@ -59,7 +59,7 @@ fn a_declared_tree_is_queryable_after_one_frame() {
 
 #[test]
 fn content_finds_its_pane_by_id() {
-    // The dawai `spawn_panel_once` pattern: poll until the pane exists, then
+    // The poll-until-it-exists pattern a real host uses: poll until the pane exists, then
     // parent in. The dock never pushes content, so this is the contract every
     // panel in every consuming crate depends on.
     fn spawn_panel_once(mut commands: Commands, existing: Query<(), With<MyPanel>>, panes: Panes) {
@@ -72,7 +72,7 @@ fn content_finds_its_pane_by_id() {
         commands.spawn((MyPanel, ChildOf(pane)));
     }
 
-    let mut app = test_app(dawai_shaped_tree());
+    let mut app = test_app(ide_shaped_tree());
     app.add_systems(Update, spawn_panel_once);
     // Two frames, deliberately. The panel is unordered against the build, so on
     // the first frame the pane may not exist yet — which is precisely why the
@@ -116,13 +116,13 @@ fn a_panel_gated_on_pane_exists_does_not_run_early() {
 
 #[test]
 fn capture_then_apply_round_trips_through_a_world() {
-    let mut app = test_app(dawai_shaped_tree());
+    let mut app = test_app(ide_shaped_tree());
     app.update();
 
     let captured = DockLayout::capture(app.world()).expect("a built layout");
 
     // A fresh app declaring the same tree adopts the saved one.
-    let mut restored = test_app(dawai_shaped_tree());
+    let mut restored = test_app(ide_shaped_tree());
     restored.update();
     captured.apply(restored.world_mut());
     restored.update();
@@ -138,7 +138,7 @@ fn capture_then_apply_round_trips_through_a_world() {
 fn a_saved_layout_survives_a_serde_round_trip() {
     // The host writes RON; this crate picks no format, so the test proves the
     // shape is serializable rather than that any particular encoder works.
-    let mut app = test_app(dawai_shaped_tree());
+    let mut app = test_app(ide_shaped_tree());
     app.update();
 
     let captured = DockLayout::capture(app.world()).expect("a built layout");
@@ -165,7 +165,7 @@ fn a_saved_layout_missing_a_declared_pane_gains_it_back() {
         [DockTree::pane("browser"), DockTree::pane("center")],
     ));
 
-    let mut app = test_app(dawai_shaped_tree());
+    let mut app = test_app(ide_shaped_tree());
     app.update();
     saved.apply(app.world_mut());
     app.update();
@@ -190,7 +190,7 @@ fn a_host_can_prune_a_retired_pane_before_applying() {
         ],
     ));
 
-    let mut app = test_app(dawai_shaped_tree());
+    let mut app = test_app(ide_shaped_tree());
     app.update();
 
     assert_eq!(
@@ -213,7 +213,7 @@ fn a_runtime_split_survives_capture_and_apply() {
         dock.split_pane("center", Axis::Column, "console", Side::After);
     }
 
-    let mut app = test_app(dawai_shaped_tree());
+    let mut app = test_app(ide_shaped_tree());
     app.update();
     app.world_mut().run_system_once(split_the_center).unwrap();
     app.update();
@@ -231,7 +231,7 @@ fn a_runtime_split_survives_capture_and_apply() {
 
     // The reloading app declares the *original* tree — the console pane exists
     // only in the save, which is exactly the situation after a restart.
-    let mut restored = test_app(dawai_shaped_tree());
+    let mut restored = test_app(ide_shaped_tree());
     restored.update();
     decoded.apply(restored.world_mut());
     restored.update();
@@ -257,7 +257,7 @@ fn a_runtime_mutation_rebuilds_without_a_layout_swap() {
         dock.remove_pane("browser");
     }
 
-    let mut app = test_app(dawai_shaped_tree());
+    let mut app = test_app(ide_shaped_tree());
     app.update();
     assert!(
         app.world()
@@ -283,7 +283,7 @@ fn a_runtime_mutation_rebuilds_without_a_layout_swap() {
 fn hiding_a_pane_leaves_it_in_the_tree() {
     // Hidden is not removed: the pane keeps its entity, its content and its
     // size, so unhiding restores what the user had rather than a default.
-    let mut app = test_app(dawai_shaped_tree());
+    let mut app = test_app(ide_shaped_tree());
     app.update();
 
     let browser = app
@@ -363,7 +363,7 @@ fn a_mode_is_inert_while_another_is_active() {
         ran.0 += 1;
     }
 
-    let mut app = test_app(dawai_shaped_tree());
+    let mut app = test_app(ide_shaped_tree());
     app.init_resource::<Ran>()
         .add_systems(Update, mode_system.run_if(is_active("timeline")));
 
