@@ -45,10 +45,23 @@
 #![forbid(unsafe_code)]
 
 pub mod chord;
+pub mod command;
+pub mod condition;
 pub mod persist;
+pub mod plugin;
 
 pub use chord::{
-    Chord, SerializedChord, alt, cmd, cmd_shift, key, keycode_to_name, multi, name_to_keycode,
-    shift,
+    Chord, SerializedChord, alt, cmd_shift, key, keycode_to_name, multi, name_to_keycode, shift,
 };
+// `chord::cmd` (the chord constructor) and `command::cmd` (the bundle helper)
+// would collide at the root, and the bundle helper is the one call sites reach
+// for constantly. Chords stay reachable as `chord::cmd(..)`.
+pub use chord::cmd as cmd_chord;
+pub use command::{
+    AppCommandExt, BindScope, Command, CommandId, CommandLabel, CommandMarker, CommandRegistry,
+    HeldPayload, Keybind, OnPress, OnRelease, cmd, dyn_cmd, fire, fire_by_id, on_press,
+    on_press_held, on_release,
+};
+pub use condition::{Priority, When};
 pub use persist::{SavedKeybinds, ScopeOverrides};
+pub use plugin::{AppName, ShellieInputPlugin};

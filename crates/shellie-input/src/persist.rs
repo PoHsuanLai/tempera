@@ -18,6 +18,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+use bevy::prelude::Resource;
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
@@ -38,7 +39,7 @@ pub type ScopeOverrides = HashMap<String, Vec<SerializedChord>>;
 /// `timeline`, `piano_roll`, …), which meant this type — and its file format —
 /// had to change whenever the application grew a new scope. That is precisely
 /// the coupling shellie exists to remove.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Resource, Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct SavedKeybinds {
     pub scopes: HashMap<String, ScopeOverrides>,
