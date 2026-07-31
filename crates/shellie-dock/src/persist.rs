@@ -13,12 +13,26 @@
 //! A saved layout and a running build disagree whenever the app has gained or
 //! lost a panel since the file was written. Neither case is an error:
 //!
-//! - a saved pane the build no longer declares is **dropped**, with a warning
-//! - a declared pane the save does not mention is **appended**, with defaults
+//! - a declared pane the save does not mention is **appended**, with the
+//!   size and visibility it was declared with
+//! - a saved pane the build does not declare is **kept**
 //!
-//! The alternative — refusing the file — means one removed panel makes a user
-//! lose their whole layout. This mirrors the "an unknown id is ignorable"
-//! doctrine `shellie-input` applies to saved keybinds.
+//! Refusing the file would mean one removed panel costs the user their whole
+//! arrangement, which is the "an unknown id is ignorable" doctrine
+//! `shellie-input` applies to saved keybinds.
+//!
+//! Keeping unknown panes is the less obvious half, and it is deliberate: the
+//! declared tree is a source of *defaults*, not a whitelist. Panes can also be
+//! created at runtime — [`DockCommands::split_pane`](crate::DockCommands::split_pane)
+//! is exactly that — and those are never in the declared tree. Pruning to what
+//! the host declared would silently discard every pane the user made, on every
+//! restart.
+//!
+//! An id that is genuinely retired therefore lingers as an empty pane rather
+//! than vanishing. That is visible and fixable; the alternative is not. A host
+//! that knows an id is gone for good can drop it with
+//! [`DockCommands::remove_pane`](crate::DockCommands::remove_pane), or prune
+//! the layout before applying it.
 
 use bevy::prelude::*;
 
@@ -40,9 +54,9 @@ impl DockLayout {
 
     /// Adopt a saved layout, reconciled against what this build declares.
     ///
-    /// The saved tree supplies the *shape* — splits, order, sizes, visibility.
-    /// The declared tree supplies the *set of panes that exist*. See the module
-    /// docs for how the two are reconciled when they disagree.
+    /// The saved tree wins on *shape* — splits, order, sizes, visibility. The
+    /// declared tree contributes any pane the save predates. See the module
+    /// docs for why unknown saved panes are kept rather than pruned.
     pub fn apply(&self, world: &mut World) {
         let Some(declared) = world.get_resource::<DockLayout>() else {
             warn!("[shellie-dock] apply: no live layout to reconcile against; ignoring");
@@ -58,31 +72,16 @@ impl DockLayout {
         world.insert_resource(reconciled);
     }
 
-    /// Merge a saved tree with the set of panes `declared` says exist.
+    /// Merge a saved tree with the panes `declared` adds since it was written.
     pub fn reconcile_against(&self, declared: &DockLayout) -> DockLayout {
-        let known: Vec<&PaneId> = declared.pane_ids().collect();
+        let mut root = self.root.clone();
 
-        // Drop saved panes this build no longer has.
-        let mut dropped = Vec::new();
-        let pruned = prune(
-            self.root.clone(),
-            &|id| known.iter().any(|k| k.as_str() == id),
-            &mut dropped,
-        );
-        for id in &dropped {
-            warn!("[shellie-dock] saved layout names unknown pane {id:?}; dropping it");
-        }
-
-        let mut root = pruned.unwrap_or_else(|| {
-            warn!("[shellie-dock] saved layout had no recognisable panes; using the declared tree");
-            declared.root.clone()
-        });
-
-        // Append panes this build declares that the save predates.
+        // Add panes this build declares that the save predates. Saved panes the
+        // build does not declare stay — see the module docs.
         let present: Vec<String> = root.pane_ids().map(|p| p.0.clone()).collect();
-        for id in known {
+        for id in declared.pane_ids() {
             if !present.iter().any(|p| p == id.as_str()) {
-                warn!(
+                debug!(
                     "[shellie-dock] pane {:?} is new since this layout was saved; appending it",
                     id.as_str()
                 );
@@ -94,6 +93,26 @@ impl DockLayout {
             version: crate::tree::FORMAT_VERSION,
             root,
         }
+    }
+
+    /// Drop every pane whose id fails `keep`, collapsing splits it empties.
+    ///
+    /// The dock cannot tell a retired panel from a pane the user created, so it
+    /// keeps both (see the module docs). A host that *does* know which ids are
+    /// gone for good can say so here, before [`apply`](Self::apply).
+    ///
+    /// Returns the dropped ids. If nothing survives, the layout is left alone —
+    /// a tree with no panes is not a layout.
+    pub fn retain_panes(&mut self, keep: impl Fn(&str) -> bool) -> Vec<String> {
+        let mut dropped = Vec::new();
+        match prune(self.root.clone(), &keep, &mut dropped) {
+            Some(root) => self.root = root,
+            None => {
+                warn!("[shellie-dock] retain_panes would empty the layout; keeping it as-is");
+                return Vec::new();
+            }
+        }
+        dropped
     }
 }
 
@@ -211,15 +230,58 @@ mod tests {
     }
 
     #[test]
-    fn a_saved_layout_naming_an_unknown_pane_drops_it() {
-        // The app removed a panel since this file was written. Losing the pane
-        // is right; losing the whole layout is not.
+    fn a_saved_pane_the_build_does_not_declare_is_kept() {
+        // The dock cannot tell "panel the app retired" from "pane the user
+        // made at runtime" — both are absent from the declared tree. Pruning
+        // would silently discard every user-created pane on every restart, so
+        // unknown panes stay and the host prunes if it knows better.
         let declared = row(&["a", "b"]);
-        let saved = row(&["a", "b", "removed"]);
+        let saved = row(&["a", "b", "user_made"]);
 
         let out = saved.reconcile_against(&declared);
-        assert_eq!(ids(&out), ["a", "b"]);
+        assert_eq!(ids(&out), ["a", "b", "user_made"]);
         assert_eq!(out.validate(), Ok(()));
+    }
+
+    #[test]
+    fn a_host_can_prune_ids_it_knows_are_retired() {
+        let mut saved = row(&["a", "b", "retired"]);
+        let dropped = saved.retain_panes(|id| id != "retired");
+
+        assert_eq!(dropped, ["retired"]);
+        assert_eq!(ids(&saved), ["a", "b"]);
+        assert_eq!(saved.validate(), Ok(()));
+    }
+
+    #[test]
+    fn pruning_everything_leaves_the_layout_alone() {
+        // A tree with no panes is not a layout; better to keep a stale one than
+        // to hand the builder something it must refuse.
+        let mut saved = row(&["a", "b"]);
+        let dropped = saved.retain_panes(|_| false);
+
+        assert!(dropped.is_empty());
+        assert_eq!(ids(&saved), ["a", "b"]);
+    }
+
+    #[test]
+    fn pruning_collapses_a_split_it_empties() {
+        let mut saved = DockLayout::new(DockTree::split(
+            Axis::Column,
+            [
+                DockTree::pane("keep"),
+                DockTree::split(Axis::Row, [DockTree::pane("x"), DockTree::pane("y")]).flex(5.0),
+            ],
+        ));
+        saved.retain_panes(|id| id != "y");
+
+        assert_eq!(ids(&saved), ["keep", "x"]);
+        assert_eq!(
+            saved.root.find_pane("x").map(DockTree::size),
+            Some(PaneSize::Flex(5.0)),
+            "the survivor inherits the dissolved split's share"
+        );
+        assert_eq!(saved.validate(), Ok(()));
     }
 
     #[test]
@@ -251,31 +313,15 @@ mod tests {
     }
 
     #[test]
-    fn dropping_a_pane_collapses_the_split_it_empties() {
-        let declared = row(&["keep"]);
-        let saved = DockLayout::new(DockTree::split(
-            Axis::Column,
-            [
-                DockTree::pane("keep"),
-                DockTree::split(
-                    Axis::Row,
-                    [DockTree::pane("gone_a"), DockTree::pane("gone_b")],
-                ),
-            ],
-        ));
-
-        let out = saved.reconcile_against(&declared);
-        assert_eq!(ids(&out), ["keep"]);
-        assert_eq!(out.validate(), Ok(()));
-    }
-
-    #[test]
-    fn a_save_sharing_no_panes_falls_back_to_the_declared_tree() {
+    fn a_save_sharing_no_panes_gains_the_declared_ones_and_keeps_its_own() {
+        // Nothing in common — an old file, or a different build. Both sets
+        // survive; the user sees their arrangement plus whatever is new.
         let declared = row(&["a", "b"]);
         let saved = row(&["x", "y"]);
 
         let out = saved.reconcile_against(&declared);
-        assert_eq!(ids(&out), ["a", "b"]);
+        assert_eq!(ids(&out), ["x", "y", "a", "b"]);
+        assert_eq!(out.validate(), Ok(()));
     }
 
     #[test]
