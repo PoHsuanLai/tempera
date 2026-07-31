@@ -1,0 +1,27 @@
+[package]
+name = "shellie-input"
+description = "Keybinds and commands for a content-agnostic application shell"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+bevy = { workspace = true, features = ["bevy_log", "bevy_window"] }
+leafwing-input-manager.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+# Keybind persistence writes to the platform config dir. The app name is a
+# parameter, not a constant — shellie does not know it is running dawai.
+dirs.workspace = true
+tracing.workspace = true
+# Display-side only: lowering a `Chord` into keycaps for tooltips/settings.
+tempera.workspace = true
+
+[dev-dependencies]
+# Tests drive a real `App`, so they need the ECS + scheduling internals that
+# the lean default feature set leaves out.
+bevy = { workspace = true, features = ["bevy_log", "bevy_window"] }

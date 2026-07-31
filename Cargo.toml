@@ -1,0 +1,54 @@
+# Workspace root for shellie — a reusable, content-agnostic application shell.
+#
+# shellie is to the UI what tutti is to audio: a self-contained set of crates
+# that knows nothing about dawai. The shell it provides is the kind an IDE, a
+# graphics editor, or a DAW would all want — keybinds, commands, docking,
+# panels — with zero vocabulary from any one of them.
+#
+# This lives OUTSIDE the dawai app workspace (the app's root Cargo.toml
+# `exclude`s this tree) and the app depends on these crates via cross-workspace
+# path deps, exactly like a published dependency. That exclusion IS the layering
+# enforcement: a crate in here physically cannot name `dawai-*`, because those
+# packages are not members of this workspace.
+#
+# The practical test: `cargo check --manifest-path crates/shellie/Cargo.toml
+# --workspace` must pass even while `dawai-model` is broken.
+[workspace]
+resolver = "2"
+members = ["crates/shellie-input"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+authors = ["PoHsuanLai"]
+license = "MIT OR Apache-2.0"
+
+# Two clippy lints fire constantly on idiomatic Bevy and say nothing useful
+# about this code, so they are allowed workspace-wide. Kept identical to the app
+# workspace's rationale (see root Cargo.toml).
+[workspace.lints.clippy]
+too_many_arguments = "allow"
+type_complexity = "allow"
+
+# Shared-dep pins the members inherit via `workspace = true`. Kept identical to
+# the dawai app workspace's pins (root Cargo.toml) so both workspaces resolve
+# the same bevy 0.19 and the app can depend on shellie without a duplicate
+# bevy in the graph.
+[workspace.dependencies]
+bevy = { version = "0.19", default-features = false }
+leafwing-input-manager = "0.21"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+dirs = "6"
+tracing = "0.1"
+
+# tempera is the bevy_ui widget library the whole shell renders with. shellie
+# needs it only for `kbd::KbdChord` — the display-side lowering of a chord —
+# so keybind hints can render as keycaps.
+tempera = { git = "https://github.com/PoHsuanLai/tempera.git", rev = "40b820c" }
+
+# Bevy is unusable in pure debug. Optimize third-party deps even in dev so a
+# shellie example stays runnable; workspace crates stay unoptimized for fast
+# incremental builds.
+[profile.dev.package."*"]
+opt-level = 2
