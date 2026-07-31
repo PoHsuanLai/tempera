@@ -44,6 +44,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod binding;
 pub mod chord;
 pub mod command;
 pub mod condition;
@@ -57,6 +58,7 @@ pub use chord::{
 // `chord::cmd` (the chord constructor) and `command::cmd` (the bundle helper)
 // would collide at the root, and the bundle helper is the one call sites reach
 // for constantly. Chords stay reachable as `chord::cmd(..)`.
+pub use binding::{Binding, RebindError, rebind, reset_binding, resolve};
 pub use chord::cmd as cmd_chord;
 pub use command::{
     AppCommandExt, BindScope, Command, CommandId, CommandLabel, CommandMarker, CommandRegistry,

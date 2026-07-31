@@ -2,6 +2,7 @@
 
 use bevy::prelude::*;
 
+use crate::binding::{apply_saved_bindings, strip_unbound_keybinds};
 use crate::command::{CommandRegistry, unregister_despawned_commands};
 use crate::dispatch::{HeldClaims, dispatch_commands, drain_held_claims, window_lost_focus};
 use crate::persist::SavedKeybinds;
@@ -44,6 +45,13 @@ impl Plugin for ShellieInputPlugin {
             // later — otherwise a remove-then-re-add in one frame trips the
             // duplicate-id guard.
             .add_observer(unregister_despawned_commands)
+            // Overrides land in `PostStartup`, after every plugin has had its
+            // `Startup` chance to register commands — an override applied
+            // before its command exists would be silently lost.
+            .add_systems(
+                PostStartup,
+                (apply_saved_bindings, strip_unbound_keybinds).chain(),
+            )
             .add_systems(Update, dispatch_commands.in_set(CommandDispatch))
             // Losing the window is the one way a held command can miss its
             // release: the key comes up while another app has focus, so we
