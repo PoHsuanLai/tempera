@@ -12,11 +12,28 @@
 //! `Res<T>` and `Query` injection, and means the application writes plain
 //! typed systems instead of strings in a bespoke expression language:
 //!
-//! ```ignore
-//! fn is_playing(t: Res<Transport>) -> bool { t.playing }
-//! fn has_selection(s: Res<Selection>) -> bool { !s.is_empty() }
+//! ```
+//! use bevy::prelude::*;
+//! use shellie_input::condition::When;
 //!
-//! When::new(is_playing.and(not(has_selection)))
+//! #[derive(Resource, Default)]
+//! struct Transport { playing: bool }
+//! #[derive(Resource, Default)]
+//! struct Selection(Vec<Entity>);
+//!
+//! fn is_playing(t: Res<Transport>) -> bool { t.playing }
+//! fn has_selection(s: Res<Selection>) -> bool { !s.0.is_empty() }
+//!
+//! let mut world = World::new();
+//! world.init_resource::<Transport>();
+//! world.init_resource::<Selection>();
+//!
+//! let mut when = When::new(is_playing.and(not(has_selection)));
+//! when.initialize(&mut world);
+//! assert!(!when.eval(&world));
+//!
+//! world.resource_mut::<Transport>().playing = true;
+//! assert!(when.eval(&world), "playing, nothing selected");
 //! ```
 //!
 //! # Evaluating outside the scheduler

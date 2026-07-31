@@ -17,8 +17,12 @@ pub struct AppName(pub String);
 
 /// Keybinds and commands.
 ///
-/// ```ignore
-/// app.add_plugins(ShellieInputPlugin::new("dawai"));
+/// ```
+/// use bevy::prelude::*;
+/// use shellie_input::plugin::ShellieInputPlugin;
+///
+/// let mut app = App::new();
+/// app.add_plugins(ShellieInputPlugin::new("my-app"));
 /// ```
 pub struct ShellieInputPlugin {
     app_name: String,

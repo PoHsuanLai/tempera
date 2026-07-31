@@ -7,12 +7,30 @@
 //! palette grouping, an icon, an owning extension id) get attached without
 //! shellie growing a field for them.
 //!
-//! ```ignore
+//! ```
+//! use bevy::prelude::*;
+//! use shellie_input::chord::cmd as chord;
+//! use shellie_input::command::{AppCommandExt, Command, CommandLabel, Keybind, cmd, on_press};
+//! use shellie_input::plugin::ShellieInputPlugin;
+//!
+//! struct Undo;
+//! impl Command for Undo {
+//!     const ID: &'static str = "edit.undo";
+//! }
+//!
+//! # #[derive(Resource, Default)] struct Undos(usize);
+//! let mut app = App::new();
+//! # app.init_resource::<Undos>();
+//! app.add_plugins(ShellieInputPlugin::new("my-app"));
 //! app.spawn_command(cmd::<Undo>((
 //!     CommandLabel::new("Undo"),
-//!     Keybind(cmd(KeyCode::KeyZ)),
-//!     on_press(|w: &mut World| { w.write_message(UndoRequested); }),
+//!     Keybind(chord(KeyCode::KeyZ)),
+//!     on_press(|w: &mut World| { w.resource_mut::<Undos>().0 += 1; }),
 //! )));
+//!
+//! // Firing by type is checked at compile time.
+//! shellie_input::fire::<Undo>(app.world_mut());
+//! # assert_eq!(app.world().resource::<Undos>().0, 1);
 //! ```
 //!
 //! Optional behaviour is an **absent component**, never an `Option` field: a
@@ -259,8 +277,24 @@ pub(crate) fn unregister_despawned_commands(
 
 /// Attach a statically-known [`Command`]'s identity to a bundle.
 ///
-/// ```ignore
-/// app.spawn_command(cmd::<Undo>((CommandLabel::new("Undo"), Keybind(..))));
+/// ```
+/// use bevy::prelude::*;
+/// use shellie_input::chord::key;
+/// use shellie_input::command::{AppCommandExt, Command, CommandLabel, Keybind, cmd, on_press};
+/// use shellie_input::plugin::ShellieInputPlugin;
+///
+/// struct Save;
+/// impl Command for Save {
+///     const ID: &'static str = "file.save";
+/// }
+///
+/// let mut app = App::new();
+/// app.add_plugins(ShellieInputPlugin::new("my-app"));
+/// app.spawn_command(cmd::<Save>((
+///     CommandLabel::new("Save"),
+///     Keybind(key(KeyCode::F5)),
+///     on_press(|_: &mut World| {}),
+/// )));
 /// ```
 pub fn cmd<C: Command>(extra: impl Bundle) -> impl Bundle {
     (CommandMarker, CommandId(C::ID.to_owned()), extra)
