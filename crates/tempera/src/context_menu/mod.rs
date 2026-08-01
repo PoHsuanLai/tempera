@@ -46,6 +46,19 @@
 //!     }
 //! }
 //! ```
+//!
+//! # Two ways in, and when each applies
+//!
+//! Everything above is the **spec** path: you build the `Vec<MenuItemSpec>`
+//! and open it. That is the right shape when one place knows the whole
+//! menu — a dropdown with four fixed entries.
+//!
+//! It stops working the moment the entries arrive from elsewhere. A menu
+//! that a plugin, an extension, or a feature module contributes to has no
+//! single place to write that `Vec`. For that there is
+//! [`registry`](self::registry) — items are entities tagged with a surface,
+//! and [`open_surface`] collects them. See its docs; the two paths meet at
+//! `MenuItemSpec`, so the renderer below is shared.
 
 use bevy::input_focus::InputDispatchPlugin;
 use bevy::input_focus::tab_navigation::TabNavigationPlugin;
@@ -56,10 +69,16 @@ use bevy::ui_widgets::popover::PopoverPlugin;
 use crate::theme::ThemePlugin;
 
 mod components;
+mod registry;
 mod request;
 mod systems;
 
 pub use components::{HasSubMenu, MenuRootMarker, SubMenuChild, SubMenuOf, TemperaMenuItem};
+pub use registry::{
+    AppMenuExt, Destructive, MenuClosed, MenuDisabled, MenuItemMarker, MenuLabel, MenuOrder,
+    MenuShortcut, MenuSurface, SeparatorBefore, VisibleWhen, child_item, collect_surface,
+    menu_item, open_surface,
+};
 pub use request::{MenuItemSpec, MenuRequest};
 
 /// Message: open a context menu at a window-space position. Any
@@ -108,8 +127,10 @@ impl Plugin for ContextMenuPlugin {
 
         app.add_message::<OpenContextMenu>()
             .add_message::<MenuItemActivated>()
+            .add_message::<MenuClosed>()
             .add_observer(systems::on_activate)
             .add_observer(systems::on_close_all)
+            .add_observer(registry::report_menu_closed)
             .add_systems(
                 Update,
                 (
