@@ -34,6 +34,7 @@ pub mod cursor;
 pub mod dialog;
 pub mod dropdown_menu;
 pub mod kbd;
+pub mod list_row;
 pub mod number_field;
 pub mod progress;
 pub mod select;
@@ -93,6 +94,11 @@ pub mod prelude {
         spawn_dropdown, DropdownMenuPlugin, DropdownStyle, DropdownTrigger,
     };
     pub use crate::kbd::{spawn_kbd, KbdPlugin, KbdStyle};
+    pub use crate::list_row::{
+        spawn_list_row, ListRow, ListRowBadge, ListRowId, ListRowLead, ListRowMeta, ListRowParts,
+        ListRowPlugin, ListRowSpec, ListRowStyle, ListRowSubtitle, ListRowTitle, ListRowTokens,
+        ListRowTrail,
+    };
     pub use crate::tabs::{
         spawn_tabs, TabIndicator, TabTrigger, Tabs, TabsActive, TabsChanged, TabsPlugin,
         TabsStyle,
@@ -161,6 +167,7 @@ impl Plugin for TemperaPlugin {
         add_once::<toast::ToastPlugin>(app, || toast::ToastPlugin);
         add_once::<command::CommandPlugin>(app, || command::CommandPlugin);
         add_once::<tree_row::TreeRowPlugin>(app, || tree_row::TreeRowPlugin);
+        add_once::<list_row::ListRowPlugin>(app, || list_row::ListRowPlugin);
     }
 }
 
