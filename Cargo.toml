@@ -15,7 +15,7 @@
 # --workspace` must pass even while `dawai-model` is broken.
 [workspace]
 resolver = "2"
-members = ["crates/shellie-dock", "crates/shellie-input"]
+members = ["crates/shellie-dock", "crates/shellie-input", "crates/shellie-tree"]
 
 [workspace.package]
 version = "0.1.0"
@@ -52,7 +52,7 @@ ron = "0.12"
 # `kbd::KbdChord` renders a keybind hint as keycaps, and `theme::ColorPalette`
 # is where the dock gets its divider tint. Taking the palette from tempera is
 # what lets shellie theme itself without a host-supplied theme trait.
-tempera = { git = "https://github.com/PoHsuanLai/tempera.git", rev = "40b820c" }
+tempera = { git = "https://github.com/PoHsuanLai/tempera.git", rev = "9e63fa3" }
 
 # Bevy is unusable in pure debug. Optimize third-party deps even in dev so a
 # shellie example stays runnable; workspace crates stay unoptimized for fast

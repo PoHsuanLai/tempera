@@ -30,6 +30,7 @@ including `dawai-frontend`, and shellie was untouched.
 | --- | --- |
 | `shellie-input` | keybinds, commands, conditions, and dispatch |
 | `shellie-dock` | panes, splits, dividers, resize, and layout persistence |
+| `shellie-tree` | hierarchy, expansion, filtering, and indent — for any tree view |
 
 More will follow as the frontend is modularized — settings, panel primitives,
 icons. Each lands as its own reviewable unit rather than as one sweeping
@@ -112,3 +113,32 @@ paid for: resize is positional, so reordering a split's children needs no
 divider bookkeeping; a pane frame is a distinct entity from its content, so a
 move is one reparent with the content following; and `DockCommands::move_pane`
 is already the tree surgery a drop would call.
+
+### shellie-tree
+
+**It computes a flat list; it spawns nothing.** `visible_rows` is a pure function
+returning rows in render order — no `World`, no `Commands`, no entity created.
+That is how real tree views work: VS Code's explorer, Chrome DevTools' DOM tree
+and every file manager keep a flat visible array and splice collapsed subtrees
+*out* of it, rather than keeping a container element per group and hiding it. A
+collapsed folder should cost nothing, not one UI node per file inside it. The
+trade is stated plainly in the module docs — toggling a group re-emits the list,
+so rows respawn where a container model would have flipped a flag.
+
+**Items are discovered, not declared** — the opposite of `shellie-dock`, and for
+a concrete reason. A dock layout *is* authored: a human writes ten panes and it
+round-trips to disk. A browser tree is minted by a filesystem walk and extended
+by plugin scans that finish after the window is up. So hierarchy is read off
+components a host's scanner writes, and only *expansion* persists. The cost is
+paid honestly: unlike `DockLayout::validate`, a duplicate group id or a parent
+cycle is detectable only while walking, so the offending row is warned about and
+dropped rather than caught early.
+
+**Expansion is stored as deviations from the declared default**, in two sets and
+not one. A single set of open ids carries one bit per group where the question
+needs two — *is it open*, and *did the user say so*. Without the second, a
+default-open group is inexpressible, which is exactly why the browser this
+replaced grew a second state mechanism with the opposite default and hand-written
+match arms per section. Here a section is just a root group.
+
+Keyboard navigation is genuinely missing, not refused.

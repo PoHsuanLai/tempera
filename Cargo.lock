@@ -4550,6 +4550,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "shellie-tree"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "ron",
+ "serde",
+ "tracing",
+]
+
+[[package]]
 name = "shlex"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4809,7 +4819,7 @@ dependencies = [
 [[package]]
 name = "tempera"
 version = "0.2.0"
-source = "git+https://github.com/PoHsuanLai/tempera.git?rev=40b820c#40b820c31b6a95c5f70fd35306c04591267ee7fd"
+source = "git+https://github.com/PoHsuanLai/tempera.git?rev=9e63fa3#9e63fa359e4135632455b01f60f3133db5769675"
 dependencies = [
  "bevy",
  "bevy_ui_text_input",
