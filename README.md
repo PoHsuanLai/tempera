@@ -31,6 +31,7 @@ including `dawai-frontend`, and shellie was untouched.
 | `shellie-input` | keybinds, commands, conditions, and dispatch |
 | `shellie-dock` | panes, splits, dividers, resize, and layout persistence |
 | `shellie-tree` | hierarchy, expansion, filtering, and indent — for any tree view |
+| `shellie-settings` | a tabbed settings dialog — the chrome, not what goes in it |
 
 More will follow as the frontend is modularized — settings, panel primitives,
 icons. Each lands as its own reviewable unit rather than as one sweeping
@@ -142,3 +143,31 @@ replaced grew a second state mechanism with the opposite default and hand-writte
 match arms per section. Here a section is just a root group.
 
 Keyboard navigation is genuinely missing, not refused.
+
+### shellie-settings
+
+**Tabs are declared, not enumerated.** The dialog this replaced had a closed
+six-variant enum, and adding a tab meant editing four places that had to stay in
+lockstep — the enum, a label table, a `SystemParam` with six named queries, and
+two hand-written six-tuples. Miss one and tab switching broke silently for
+*every* tab, because the six-way destructure bailed. It also could not work
+here: a crate that names `Audio` and `Extensions` knows it is running a DAW. A
+tab is now an entity, ordered by `TabOrder`, which means an **extension** can
+contribute one — something the enum made impossible.
+
+**Content finds its body; the dialog never pushes.** Same inversion as the dock:
+a panel queries by string id and parents itself in, so a tab's content can live
+in a crate this one has never heard of.
+
+**It owns the chrome and nothing else.** Not the preference values (a control's
+write-back names a host type, so the binding is the host's), not persistence
+(there is nothing to persist but the active tab), not the form rows
+(`tempera::setting_row` and `tempera::list_row`), and not opening the dialog —
+`SettingsOpen` is mirrored onto `Visibility` and never set here. Closing is
+*reported* rather than swallowed, preserving tempera's deliberately
+source-of-truth-agnostic `DialogDismissed`.
+
+The title-bar height is the detail worth noting: the old code carried
+`const TITLE_BAR_HEIGHT = 44.0`, a hand-copy of a tempera internal that nothing
+kept in step, and subtracted it to size the content row. Here the row is
+`flex_grow: 1.0`, so the number never has to be known.

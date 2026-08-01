@@ -15,7 +15,12 @@
 # --workspace` must pass even while `dawai-model` is broken.
 [workspace]
 resolver = "2"
-members = ["crates/shellie-dock", "crates/shellie-input", "crates/shellie-tree"]
+members = [
+    "crates/shellie-dock",
+    "crates/shellie-input",
+    "crates/shellie-settings",
+    "crates/shellie-tree",
+]
 
 [workspace.package]
 version = "0.1.0"

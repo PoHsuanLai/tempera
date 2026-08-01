@@ -4550,6 +4550,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "shellie-settings"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "serde",
+ "tempera",
+ "tracing",
+]
+
+[[package]]
 name = "shellie-tree"
 version = "0.1.0"
 dependencies = [
