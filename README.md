@@ -89,7 +89,26 @@ it likes. This is also what keeps resize *positional* — a divider finds its
 neighbours by index among its parent's children, never by marker — which is what
 makes a future drag-to-rearrange nearly free.
 
-Tabs are not built. The shape is paid for: the persisted tree is recursive from
-v1 so a `Tabs` variant is additive, a pane frame is a distinct entity from its
-content so a tab-move is one reparent, and `DockCommands::move_pane` is already
-the tree surgery a drop would call.
+**Several contents in one pane are not a node kind.** A pane can hold N pages
+with one showing — what a tab bar, a mode switcher and a stacked view all reduce
+to — but there is no `DockTree::Tabs` variant and there will not be one. The
+tree answers exactly one question, *how does the window divide*, and switching
+page divides nothing: no divider moves, nothing resizes, the split structure is
+identical either side. So pages are components on a pane's children, the tree is
+untouched, and the layout format does not move.
+
+`ActivePage` lives on the pane rather than in a resource, so two panes holding
+pages are independent — and the crate draws no chooser. `PageLabel`, `PageIcon`
+and `PageOrder` exist so whatever *does* draw one has the metadata, whether that
+is a tab strip, a sidebar of icons, or a keybind with no UI at all. Same split
+GTK makes between `Stack` and `StackSwitcher`.
+
+This replaced an earlier `center_mode` module that hardcoded both "the swappable
+surface is the center one" and "there is exactly one of them". Neither is a
+property of a shell.
+
+Drag-to-rearrange is not built, and that one *is* a tree change. The shape is
+paid for: resize is positional, so reordering a split's children needs no
+divider bookkeeping; a pane frame is a distinct entity from its content, so a
+move is one reparent with the content following; and `DockCommands::move_pane`
+is already the tree surgery a drop would call.

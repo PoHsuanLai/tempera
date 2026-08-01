@@ -74,22 +74,30 @@
 //! resizes against a sibling and another against the window is a layout where
 //! rearranging panes means rewriting the resize code.
 //!
-//! # Tabs
+//! # Several contents in one pane
 //!
-//! Not implemented. The design keeps them cheap: [`DockTree`] is recursive on
-//! disk, so a `Tabs` variant is additive rather than a break; a pane *frame* is
-//! a distinct entity from the content parented into it, so moving a pane is one
-//! reparent and the content subtree follows; and resize is positional, so
-//! reordering children needs no changes at all.
+//! See [`page`]. A pane can hold N candidate contents with one showing, which
+//! is what a tab bar, a mode switcher or a stacked view all reduce to.
+//!
+//! Note that this is **not** a node kind: there is no `DockTree::Tabs` variant
+//! and there will not be one. [`DockTree`] answers how the window divides, and
+//! switching page divides nothing — no divider moves and nothing resizes. So
+//! pages are components on a pane's children, and this tree is untouched.
+//!
+//! Drag-to-rearrange is not implemented, and that one *is* a tree change. The
+//! design keeps it cheap: resize is positional, so reordering a split's
+//! children needs no divider bookkeeping, and a pane frame is a distinct entity
+//! from its content, so a move is one reparent with the content subtree
+//! following.
 //!
 //! [`shellie_input`]: https://docs.rs/shellie-input
 
 #![forbid(unsafe_code)]
 
 pub mod build;
-pub mod center_mode;
 pub mod mutate;
 pub mod node;
+pub mod page;
 pub mod persist;
 pub mod plugin;
 pub mod registry;
@@ -98,14 +106,11 @@ pub mod tree;
 pub mod visibility;
 
 pub use build::DockBuildSet;
-pub use center_mode::{
-    ActiveCenterMode, CenterContent, CenterMode, CenterModeIcon, CenterModeId, CenterModeLabel,
-    CenterModeOrder, CenterModeRegistration, is_active,
-};
 pub use mutate::{DockCommands, Side};
 pub use node::{
     Axis, Divider, DockNode, DockRoot, Pane, PaneId, PaneMinSize, PaneSize, PaneVisibility, Split,
 };
+pub use page::{ActivePage, Page, PageIcon, PageId, PageLabel, PageOrder, page_is_active};
 pub use plugin::ShellieDockPlugin;
 pub use registry::{PaneRegistry, pane_exists};
 pub use resize::{DividerStyle, redistribute_flex};

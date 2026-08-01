@@ -3,7 +3,7 @@
 use bevy::prelude::*;
 
 use crate::build::{DockBuildSet, RebuildRequested, build_dock};
-use crate::center_mode::ActiveCenterMode;
+use crate::page::apply_active_page;
 use crate::registry::PaneRegistry;
 use crate::resize::DividerStyle;
 use crate::tree::{DockLayout, DockTree};
@@ -30,10 +30,11 @@ pub struct ShellieDockPlugin;
 
 impl Plugin for ShellieDockPlugin {
     fn build(&self, app: &mut App) {
+        // No page state is initialized here: `ActivePage` lives on whichever
+        // pane holds pages, so an app with none pays nothing.
         app.init_resource::<PaneRegistry>()
             .init_resource::<RebuildRequested>()
-            .init_resource::<DividerStyle>()
-            .init_resource::<ActiveCenterMode>();
+            .init_resource::<DividerStyle>();
 
         // A host that inserts its own layout wins; this is only so the dock is
         // never in a state with no tree at all.
@@ -45,7 +46,10 @@ impl Plugin for ShellieDockPlugin {
         // same code path that reconciles later changes — a separate startup
         // path would be a second implementation to keep in step.
         app.add_systems(Update, build_dock.in_set(DockBuildSet))
-            .add_systems(Update, apply_visibility.after(DockBuildSet));
+            .add_systems(
+                Update,
+                (apply_visibility, apply_active_page).after(DockBuildSet),
+            );
     }
 }
 

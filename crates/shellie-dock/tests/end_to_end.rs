@@ -7,11 +7,10 @@
 //! stale dock.
 
 use bevy::prelude::*;
-use shellie_dock::center_mode::{ActiveCenterMode, CenterContent, is_active};
 use shellie_dock::registry::Panes;
 use shellie_dock::{
-    Axis, DockCommands, DockLayout, DockTree, PaneRegistry, PaneVisibility, ShellieDockPlugin,
-    Side, pane_exists,
+    ActivePage, Axis, DockCommands, DockLayout, DockTree, Page, PageId, PaneRegistry,
+    PaneVisibility, ShellieDockPlugin, Side, page_is_active, pane_exists,
 };
 
 #[derive(Component)]
@@ -321,59 +320,252 @@ fn hiding_a_pane_leaves_it_in_the_tree() {
     );
 }
 
-#[test]
-fn center_content_works_with_no_dock_present() {
-    // Demo binaries and test harnesses fabricate a full-window `CenterContent`
-    // and run a mode against it. Nothing in the center-mode vocabulary may
-    // reach for a pane.
-    #[derive(Resource, Default)]
-    struct Ran(u32);
-
-    fn mode_system(mut ran: ResMut<Ran>) {
-        ran.0 += 1;
+/// Spawn `ids` as pages of `pane`, with the first active.
+fn add_pages(app: &mut App, pane: Entity, ids: &[&str]) -> Vec<Entity> {
+    let pages = ids
+        .iter()
+        .map(|id| {
+            app.world_mut()
+                .spawn((Page, PageId::from(*id), Node::default(), ChildOf(pane)))
+                .id()
+        })
+        .collect();
+    if let Some(first) = ids.first() {
+        app.world_mut()
+            .entity_mut(pane)
+            .insert(ActivePage::at(*first));
     }
+    pages
+}
 
-    let mut app = App::new();
-    app.init_resource::<Ran>()
-        .insert_resource(ActiveCenterMode(Some("demo")))
-        .add_systems(Update, mode_system.run_if(is_active("demo")));
-    app.world_mut().spawn((
-        CenterContent,
-        Node {
-            width: Val::Percent(100.0),
-            height: Val::Percent(100.0),
-            ..default()
-        },
-    ));
+fn display_of(app: &App, entity: Entity) -> Display {
+    app.world().get::<Node>(entity).unwrap().display
+}
+
+#[test]
+fn only_the_active_page_takes_part_in_layout() {
+    let mut app = test_app(ide_shaped_tree());
     app.update();
 
-    assert_eq!(app.world().resource::<Ran>().0, 1);
-    assert!(
-        app.world().get_resource::<PaneRegistry>().is_none(),
-        "no dock was added, and none was needed"
+    let center = app
+        .world()
+        .resource::<PaneRegistry>()
+        .get("center")
+        .unwrap();
+    let pages = add_pages(&mut app, center, &["timeline", "spectral"]);
+    app.update();
+
+    assert_eq!(display_of(&app, pages[0]), Display::Flex);
+    assert_eq!(
+        display_of(&app, pages[1]),
+        Display::None,
+        "an inactive page must measure zero, not merely be invisible"
     );
 }
 
 #[test]
-fn a_mode_is_inert_while_another_is_active() {
+fn switching_pages_swaps_which_one_shows() {
+    let mut app = test_app(ide_shaped_tree());
+    app.update();
+
+    let center = app
+        .world()
+        .resource::<PaneRegistry>()
+        .get("center")
+        .unwrap();
+    let pages = add_pages(&mut app, center, &["timeline", "spectral"]);
+    app.update();
+
+    app.world_mut()
+        .get_mut::<ActivePage>(center)
+        .unwrap()
+        .set("spectral");
+    app.update();
+
+    assert_eq!(display_of(&app, pages[0]), Display::None);
+    assert_eq!(display_of(&app, pages[1]), Display::Flex);
+}
+
+#[test]
+fn two_panes_hold_pages_independently() {
+    // The property a single global "active mode" resource cannot express, and
+    // the reason `ActivePage` lives on the pane.
+    let mut app = test_app(ide_shaped_tree());
+    app.update();
+
+    let (center, browser) = {
+        let registry = app.world().resource::<PaneRegistry>();
+        (
+            registry.get("center").unwrap(),
+            registry.get("browser").unwrap(),
+        )
+    };
+    let center_pages = add_pages(&mut app, center, &["timeline", "spectral"]);
+    let browser_pages = add_pages(&mut app, browser, &["files", "presets"]);
+    app.update();
+
+    app.world_mut()
+        .get_mut::<ActivePage>(center)
+        .unwrap()
+        .set("spectral");
+    app.update();
+
+    assert_eq!(display_of(&app, center_pages[1]), Display::Flex);
+    assert_eq!(
+        display_of(&app, browser_pages[0]),
+        Display::Flex,
+        "the other pane's active page is untouched"
+    );
+    assert_eq!(display_of(&app, browser_pages[1]), Display::None);
+}
+
+#[test]
+fn a_page_added_later_is_hidden_without_a_switch() {
+    // A page spawning into an already-settled pane must not appear on top of
+    // the active one just because `ActivePage` did not change.
+    let mut app = test_app(ide_shaped_tree());
+    app.update();
+
+    let center = app
+        .world()
+        .resource::<PaneRegistry>()
+        .get("center")
+        .unwrap();
+    add_pages(&mut app, center, &["timeline"]);
+    app.update();
+
+    let late = app
+        .world_mut()
+        .spawn((
+            Page,
+            PageId::from("spectral"),
+            Node::default(),
+            ChildOf(center),
+        ))
+        .id();
+    app.update();
+
+    assert_eq!(display_of(&app, late), Display::None);
+}
+
+#[test]
+fn a_page_is_inert_while_another_is_active() {
     #[derive(Resource, Default)]
     struct Ran(u32);
 
-    fn mode_system(mut ran: ResMut<Ran>) {
+    fn page_system(mut ran: ResMut<Ran>) {
         ran.0 += 1;
     }
 
     let mut app = test_app(ide_shaped_tree());
     app.init_resource::<Ran>()
-        .add_systems(Update, mode_system.run_if(is_active("timeline")));
+        .add_systems(Update, page_system.run_if(page_is_active("timeline")));
+    app.update();
 
-    app.world_mut()
-        .insert_resource(ActiveCenterMode(Some("spectral")));
+    let center = app
+        .world()
+        .resource::<PaneRegistry>()
+        .get("center")
+        .unwrap();
+    add_pages(&mut app, center, &["spectral"]);
     app.update();
     assert_eq!(app.world().resource::<Ran>().0, 0);
 
     app.world_mut()
-        .insert_resource(ActiveCenterMode(Some("timeline")));
+        .get_mut::<ActivePage>(center)
+        .unwrap()
+        .set("timeline");
     app.update();
     assert_eq!(app.world().resource::<Ran>().0, 1);
+}
+
+#[test]
+fn pages_survive_a_layout_change_with_their_pane() {
+    // Pages are children of the pane frame, so the reconcile that preserves a
+    // pane preserves its pages — no re-registration on every resize.
+    let mut app = test_app(ide_shaped_tree());
+    app.update();
+
+    let center = app
+        .world()
+        .resource::<PaneRegistry>()
+        .get("center")
+        .unwrap();
+    let pages = add_pages(&mut app, center, &["timeline", "spectral"]);
+
+    app.world_mut()
+        .insert_resource(DockLayout::new(DockTree::split(
+            Axis::Row,
+            [
+                DockTree::pane("browser").flex(3.0),
+                DockTree::pane("center").flex(5.0),
+            ],
+        )));
+    app.update();
+
+    assert!(app.world().get_entity(pages[0]).is_ok());
+    assert_eq!(
+        app.world().get::<ChildOf>(pages[0]).map(ChildOf::parent),
+        Some(center),
+    );
+    assert!(
+        app.world()
+            .get::<ActivePage>(center)
+            .unwrap()
+            .is("timeline")
+    );
+}
+
+#[test]
+fn pages_work_with_no_dock_present() {
+    // Demo binaries and test harnesses hang pages off one full-window node and
+    // switch between them. Nothing in the page vocabulary may reach for a pane,
+    // or a page's own crate cannot be tested without standing up a layout.
+    // No `ShellieDockPlugin` at all — just the one system, which is the point:
+    // a page's crate must be testable without standing up a layout.
+    let mut app = App::new();
+    app.add_systems(Update, shellie_dock::page::apply_active_page);
+
+    let container = app
+        .world_mut()
+        .spawn((
+            Node {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                ..default()
+            },
+            ActivePage::at("demo"),
+        ))
+        .id();
+    let pages: Vec<Entity> = ["demo", "other"]
+        .iter()
+        .map(|id| {
+            app.world_mut()
+                .spawn((Page, PageId::from(*id), Node::default(), ChildOf(container)))
+                .id()
+        })
+        .collect();
+    app.update();
+
+    assert_eq!(display_of(&app, pages[0]), Display::Flex);
+    assert_eq!(display_of(&app, pages[1]), Display::None);
+    assert!(
+        app.world().get::<shellie_dock::Pane>(container).is_none(),
+        "no pane was involved, and none was needed"
+    );
+}
+
+#[test]
+fn a_dock_with_no_pages_carries_no_page_state() {
+    // Pages are opt-in: an app that never uses them pays nothing, which is why
+    // the plugin initializes no page resource.
+    let mut app = test_app(ide_shaped_tree());
+    app.update();
+
+    let panes_with_pages = app
+        .world_mut()
+        .query::<&ActivePage>()
+        .iter(app.world())
+        .count();
+    assert_eq!(panes_with_pages, 0);
 }
