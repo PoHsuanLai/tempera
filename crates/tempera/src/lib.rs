@@ -39,6 +39,7 @@ pub mod number_field;
 pub mod progress;
 pub mod select;
 pub mod separator;
+pub mod setting_row;
 pub mod slider;
 pub mod switch;
 pub mod tabs;
@@ -118,6 +119,11 @@ pub mod prelude {
     pub use crate::separator::{
         spawn_separator, SeparatorAxis, SeparatorPlugin, SeparatorStyle,
     };
+    pub use crate::setting_row::{
+        spawn_section_header, spawn_setting_row, SettingRow, SettingRowControl,
+        SettingRowDescription, SettingRowLabel, SettingRowPlugin, SettingRowSpec, SettingRowStyle,
+        SettingRowTokens, SettingSection,
+    };
     pub use crate::toast::{
         spawn_error as spawn_toast_error, spawn as spawn_toast, Toast, ToastConfig,
         ToastDismissible, ToastDuration, ToastExternalProgress, ToastMessage, ToastNodes,
@@ -168,6 +174,7 @@ impl Plugin for TemperaPlugin {
         add_once::<command::CommandPlugin>(app, || command::CommandPlugin);
         add_once::<tree_row::TreeRowPlugin>(app, || tree_row::TreeRowPlugin);
         add_once::<list_row::ListRowPlugin>(app, || list_row::ListRowPlugin);
+        add_once::<setting_row::SettingRowPlugin>(app, || setting_row::SettingRowPlugin);
     }
 }
 
