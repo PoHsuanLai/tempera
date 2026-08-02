@@ -1,11 +1,19 @@
 [package]
-name = "tempera"
+name = "tempera-widgets"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Theme-aware UI widgets for bevy_ui — retained-mode, ECS-native"
+
+# The package is `tempera-widgets`; the library it produces is `tempera`.
+# The package name says which crate of the workspace this is — it sits beside
+# tempera-dock, tempera-input and the rest. The lib name is what everyone
+# writes at a use site, and `tempera::button` reads better than
+# `tempera_widgets::button` for the thing the repo is named after.
+[lib]
+name = "tempera"
 
 [dependencies]
 # Fork with `InputDispatchPlugin` registration guard so tempera's
