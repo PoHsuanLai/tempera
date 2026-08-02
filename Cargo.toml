@@ -18,11 +18,11 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/tempera",
-    "crates/shellie-dock",
-    "crates/shellie-input",
-    "crates/shellie-settings",
-    "crates/shellie-tree",
+    "crates/tempera-widgets",
+    "crates/tempera-dock",
+    "crates/tempera-input",
+    "crates/tempera-settings",
+    "crates/tempera-tree",
 ]
 
 [workspace.package]
@@ -52,11 +52,14 @@ tracing = "0.1"
 ron = "0.12"
 
 # The shell renders with the widget library beside it. This was a git
-# dependency pinned to a rev until shellie moved into this repo, which meant a
-# widget landing here needed a rev bump in two other files before the shell
-# could use it. Consumers of shellie still pin *this* repo by rev; the point is
-# that the two layers now move together.
-tempera = { path = "crates/tempera" }
+# dependency pinned to a rev until the shell moved into this repo, which meant
+# a widget landing here needed a rev bump in two other files before the shell
+# could use it. Consumers still pin *this* repo by rev; the point is that the
+# two layers now move together.
+#
+# Named `tempera` here to match the library name the widget crate declares
+# (`[lib] name = "tempera"`), so every use site stays `tempera::button`.
+tempera = { package = "tempera-widgets", path = "crates/tempera-widgets" }
 
 # Bevy is unusable in pure debug. Optimize third-party deps even in dev so an
 # example stays runnable; workspace crates stay unoptimized for fast
