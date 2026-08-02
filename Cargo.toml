@@ -1,6 +1,29 @@
+# tempera — bevy_ui widgets, and the application shell built out of them.
+#
+# Two layers, one workspace:
+#
+#   crates/tempera      the widget library: buttons, dialogs, menus, rows.
+#                       Knows how to draw itself and nothing about who asked.
+#   crates/shellie-*    the shell those widgets assemble into: keybinds and
+#                       commands, docking, trees, a settings dialog.
+#
+# The split is what each layer is allowed to know. A shellie crate knows what
+# an application *shape* is — that panes divide, that commands have conditions
+# — and still nothing about any particular application.
+#
+# Neither layer may name a specific app. shellie moved here from the dawai
+# repo, where that was enforced by a workspace `exclude`: a shellie crate could
+# not depend on `dawai-*` because those packages were not members. A separate
+# repository is the stronger form of the same rule.
 [workspace]
 resolver = "2"
-members = ["crates/tempera"]
+members = [
+    "crates/tempera",
+    "crates/shellie-dock",
+    "crates/shellie-input",
+    "crates/shellie-settings",
+    "crates/shellie-tree",
+]
 
 [workspace.package]
 version = "0.2.0"
@@ -9,8 +32,34 @@ authors = ["PoHsuan Lai"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/PoHsuanLai/tempera"
 
+# Two clippy lints fire constantly on idiomatic Bevy and say nothing useful
+# about this code, so they are allowed workspace-wide.
+[workspace.lints.clippy]
+too_many_arguments = "allow"
+type_complexity = "allow"
+
 [workspace.dependencies]
 bevy = { version = "0.19", default-features = false }
+leafwing-input-manager = "0.21"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+dirs = "6"
+tracing = "0.1"
+# Only the dock's persistence tests need this — `capture`/`apply` hand back a
+# `Serialize` type and never pick a format. Pinned to the version dawai writes
+# its sidecars with, so the round-trip test exercises the real on-disk shape
+# rather than a lookalike.
+ron = "0.12"
 
+# The shell renders with the widget library beside it. This was a git
+# dependency pinned to a rev until shellie moved into this repo, which meant a
+# widget landing here needed a rev bump in two other files before the shell
+# could use it. Consumers of shellie still pin *this* repo by rev; the point is
+# that the two layers now move together.
+tempera = { path = "crates/tempera" }
+
+# Bevy is unusable in pure debug. Optimize third-party deps even in dev so an
+# example stays runnable; workspace crates stay unoptimized for fast
+# incremental builds.
 [profile.dev.package."*"]
 opt-level = 3
