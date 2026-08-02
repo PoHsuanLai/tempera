@@ -69,13 +69,19 @@ pub(crate) fn repaint_toggle_items(
         } else {
             (Color::NONE, palette.foreground)
         };
-        if let Ok(mut b) = bg.get_mut(entity) {
-            *b = BackgroundColor(with_alpha(surface, alpha));
+        let want_bg = with_alpha(surface, alpha);
+        if let Ok(mut b) = bg.get_mut(entity)
+            && b.0 != want_bg
+        {
+            *b = BackgroundColor(want_bg);
         }
         if let Some(kids) = kids {
+            let want_text = with_alpha(text, alpha);
             for child in kids.iter() {
-                if let Ok(mut tc) = text_colors.get_mut(child) {
-                    tc.0 = with_alpha(text, alpha);
+                if let Ok(mut tc) = text_colors.get_mut(child)
+                    && tc.0 != want_text
+                {
+                    tc.0 = want_text;
                 }
             }
         }

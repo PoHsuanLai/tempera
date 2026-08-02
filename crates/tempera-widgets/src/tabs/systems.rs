@@ -38,49 +38,30 @@ pub(crate) fn trigger_on_activate(
     }
 }
 
-/// Retint trigger text on selection / hover changes.
+/// Retint trigger text on selection / hover / palette changes.
+///
+/// One unfiltered pass. There used to be a `Changed<Interaction>` query, a
+/// `Changed<TabsActive>` query and a `handled` vec to stop them
+/// double-painting — the second existed because when the active tab flips,
+/// the *previously* active trigger has to dim, and that entity's own
+/// components did not change. A palette swap is the same shape, one level
+/// wider. Both are in the run condition now, and the write compares first.
 pub(crate) fn repaint_triggers(
     palette: Res<ColorPalette>,
     tabs: Query<(&TabsActive, &Children), With<Tabs>>,
-    tabs_changed: Query<(&TabsActive, &Children), (With<Tabs>, Changed<TabsActive>)>,
-    triggers: Query<
-        (Entity, &TabTrigger, &Interaction, &Children, &ChildOf),
-        Or<(Changed<Interaction>, Added<TabTrigger>)>,
-    >,
-    all_triggers: Query<(&TabTrigger, &Interaction, &Children), With<TabTrigger>>,
+    triggers: Query<(&TabTrigger, &Interaction, &Children, &ChildOf), With<TabTrigger>>,
     mut texts: Query<&mut TextColor>,
 ) {
-    // Repaint triggers whose Interaction just changed.
-    let mut handled: Vec<Entity> = Vec::new();
-    for (entity, trigger, interaction, kids, parent) in &triggers {
-        handled.push(entity);
+    for (trigger, interaction, kids, parent) in &triggers {
         let Ok((active, _)) = tabs.get(parent.0) else {
             continue;
         };
         let color = trigger_text_color(&palette, trigger.index == active.0, interaction);
         for child in kids.iter() {
-            if let Ok(mut tc) = texts.get_mut(child) {
+            if let Ok(mut tc) = texts.get_mut(child)
+                && tc.0 != color
+            {
                 *tc = TextColor(color);
-            }
-        }
-    }
-
-    // When `TabsActive` flips, repaint *every* trigger in that row
-    // so the previously-active one dims. Cheap because tabs rows are
-    // short.
-    for (active, kids) in &tabs_changed {
-        for child in kids.iter() {
-            if handled.contains(&child) {
-                continue;
-            }
-            let Ok((trigger, interaction, text_kids)) = all_triggers.get(child) else {
-                continue;
-            };
-            let color = trigger_text_color(&palette, trigger.index == active.0, interaction);
-            for grand in text_kids.iter() {
-                if let Ok(mut tc) = texts.get_mut(grand) {
-                    *tc = TextColor(color);
-                }
             }
         }
     }

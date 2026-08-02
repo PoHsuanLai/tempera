@@ -79,10 +79,16 @@ fn repaint_progress(
     mut fills: Query<&mut Node, With<ProgressFill>>,
 ) {
     for (value, kids) in &bars {
-        let pct = value.0.clamp(0.0, 1.0) * 100.0;
+        let pct = Val::Percent(value.0.clamp(0.0, 1.0) * 100.0);
         for child in kids.iter() {
-            if let Ok(mut node) = fills.get_mut(child) {
-                node.width = Val::Percent(pct);
+            // Compared, not merely written: bevy_ui gates its taffy upload
+            // on `Ref<Node>::is_changed()`, and a `DerefMut` sets that flag
+            // whether or not the value moved. A bar re-told the same value
+            // would otherwise re-upload on every telling.
+            if let Ok(mut node) = fills.get_mut(child)
+                && node.width != pct
+            {
+                node.width = pct;
             }
         }
     }

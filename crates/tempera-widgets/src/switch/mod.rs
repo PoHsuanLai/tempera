@@ -17,6 +17,7 @@
 //! - [`InteractionDisabled`] — disabled state
 
 use bevy::prelude::*;
+use bevy::ui::InteractionDisabled;
 
 use crate::checkbox_behavior::CheckboxBehaviorPlugin;
 use crate::theme::ThemePlugin;
@@ -28,7 +29,7 @@ mod systems;
 pub use bevy::ui::Checked;
 pub use bevy::ui_widgets::ValueChange;
 pub use components::{Switch, SwitchSize, SwitchThumb};
-pub use spawn::{spawn_switch, SwitchStyle};
+pub use spawn::{SwitchStyle, spawn_switch};
 
 pub struct SwitchStylePlugin;
 
@@ -44,7 +45,12 @@ impl Plugin for SwitchStylePlugin {
             Update,
             (
                 systems::retarget_switch,
-                systems::repaint_switch_track,
+                systems::repaint_switch_track.run_if(
+                    crate::theme::repaint_needed_on::<
+                        Switch,
+                        Or<(Changed<Checked>, Changed<InteractionDisabled>)>,
+                    >,
+                ),
                 systems::drive_switch,
             )
                 .chain(),

@@ -67,8 +67,13 @@ impl Plugin for TreeRowPlugin {
         if !app.is_plugin_added::<CursorPlugin>() {
             app.add_plugins(CursorPlugin);
         }
-        app.init_resource::<TreeRowTokens>()
-            .add_systems(Update, (systems::repaint_rows, systems::repaint_chevrons));
+        app.init_resource::<TreeRowTokens>().add_systems(
+            Update,
+            (
+                systems::repaint_rows.run_if(crate::theme::repaint_needed::<TreeRow>),
+                systems::repaint_chevrons,
+            ),
+        );
     }
 }
 
@@ -87,7 +92,13 @@ mod tests {
             .init_resource::<FontHandle>()
             .init_resource::<TreeRowTokens>()
             .init_resource::<Assets<Image>>()
-            .add_systems(Update, (systems::repaint_rows, systems::repaint_chevrons));
+            .add_systems(
+                Update,
+                (
+                    systems::repaint_rows.run_if(crate::theme::repaint_needed::<TreeRow>),
+                    systems::repaint_chevrons,
+                ),
+            );
         app
     }
 
@@ -278,6 +289,36 @@ mod tests {
         };
         assert_eq!(color_of(header, &app), palette.foreground);
         assert_eq!(color_of(leaf, &app), palette.muted_foreground);
+    }
+
+    #[test]
+    fn recolouring_the_palette_reaches_a_rows_label() {
+        // A row paints two things: its own background, and its label's
+        // colour one level down. The label is the half a per-entity filter
+        // misses most easily, because nothing about the *label* changed —
+        // only the palette did.
+        let mut app = test_app();
+        let leaf = spawn(&mut app, TreeRowSpec::new("item"));
+        app.update();
+
+        let recoloured = Color::srgb(0.1, 0.8, 0.3);
+        app.world_mut()
+            .resource_mut::<ColorPalette>()
+            .muted_foreground = recoloured;
+        app.update();
+
+        let label = app
+            .world()
+            .get::<Children>(leaf)
+            .unwrap()
+            .iter()
+            .find(|c| app.world().get::<TreeRowLabel>(*c).is_some())
+            .expect("a leaf has a label");
+        assert_eq!(
+            app.world().get::<TextColor>(label).unwrap().0,
+            recoloured,
+            "a palette swap must reach a label nobody touched"
+        );
     }
 
     #[test]

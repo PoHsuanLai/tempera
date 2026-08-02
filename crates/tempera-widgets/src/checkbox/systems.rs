@@ -26,21 +26,8 @@ pub(crate) fn retarget_checkbox(
 pub(crate) fn repaint_checkbox(
     palette: Res<ColorPalette>,
     boxes: Query<
-        (
-            Entity,
-            Has<Checked>,
-            &Interaction,
-            Has<InteractionDisabled>,
-        ),
-        (
-            With<TemperaCheckbox>,
-            Or<(
-                Changed<Checked>,
-                Changed<Interaction>,
-                Changed<InteractionDisabled>,
-                Added<TemperaCheckbox>,
-            )>,
-        ),
+        (Entity, Has<Checked>, &Interaction, Has<InteractionDisabled>),
+        With<TemperaCheckbox>,
     >,
     mut bg: Query<&mut BackgroundColor, With<TemperaCheckbox>>,
     mut border: Query<&mut BorderColor, With<TemperaCheckbox>>,
@@ -55,18 +42,27 @@ pub(crate) fn repaint_checkbox(
         } else {
             with_alpha(palette.background, alpha)
         };
-        if let Ok(mut bg) = bg.get_mut(entity) {
+        if let Ok(mut bg) = bg.get_mut(entity)
+            && bg.0 != fill
+        {
             *bg = BackgroundColor(fill);
         }
 
-        let base_edge = if checked { palette.primary } else { palette.input };
+        let base_edge = if checked {
+            palette.primary
+        } else {
+            palette.input
+        };
         let edge = if hovered {
             ColorPalette::hover_lift(base_edge, 0.12)
         } else {
             base_edge
         };
-        if let Ok(mut b) = border.get_mut(entity) {
-            *b = BorderColor::all(with_alpha(edge, alpha));
+        let want = BorderColor::all(with_alpha(edge, alpha));
+        if let Ok(mut b) = border.get_mut(entity)
+            && *b != want
+        {
+            *b = want;
         }
     }
 }

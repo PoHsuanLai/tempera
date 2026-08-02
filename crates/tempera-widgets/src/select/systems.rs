@@ -10,7 +10,13 @@ use crate::context_menu::{MenuItemActivated, MenuItemSpec, MenuRequest, OpenCont
 pub(crate) fn open_on_click(
     on: On<Pointer<Click>>,
     selects: Query<
-        (Entity, &SelectOptions, &SelectValue, &ComputedNode, &UiGlobalTransform),
+        (
+            Entity,
+            &SelectOptions,
+            &SelectValue,
+            &ComputedNode,
+            &UiGlobalTransform,
+        ),
         With<Select>,
     >,
     mut writer: MessageWriter<OpenContextMenu>,
@@ -86,11 +92,18 @@ pub(crate) fn on_menu_item_activated(
 }
 
 /// Hover bg tint on the select trigger.
+///
+/// Reads [`MenuTokens`] rather than the two hardcoded white alphas it used
+/// to hold: those were a copy *by value* of `item_hover_bg` and
+/// `item_active_bg`, so a recoloured theme could never have reached this
+/// widget even once the gating was fixed. The select's trigger is a menu
+/// surface, so it takes the menu's colours.
 pub(crate) fn paint_select_hover(
-    mut selects: Query<(&Interaction, &mut BackgroundColor), (With<Select>, Changed<Interaction>)>,
+    menu: Res<crate::theme::MenuTokens>,
+    mut selects: Query<(&Interaction, &mut BackgroundColor), With<Select>>,
 ) {
-    let resting = Color::srgba(1.0, 1.0, 1.0, 0.06);
-    let hovered = Color::srgba(1.0, 1.0, 1.0, 0.10);
+    let resting = menu.item_hover_bg;
+    let hovered = menu.item_active_bg;
     for (interaction, mut bg) in &mut selects {
         let target = match interaction {
             Interaction::Hovered | Interaction::Pressed => hovered,

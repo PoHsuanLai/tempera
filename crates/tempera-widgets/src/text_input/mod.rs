@@ -50,7 +50,7 @@ pub use bevy_ui_text_input::{
     TextInputPrompt, TextInputQueue,
 };
 pub use components::TextInput;
-pub use spawn::{spawn_text_input, spawn_text_input_with_icon, TextInputHandle, TextInputStyle};
+pub use spawn::{TextInputHandle, TextInputStyle, spawn_text_input, spawn_text_input_with_icon};
 
 /// Convenience alias for the per-keystroke change-detection pattern.
 /// Bevy doesn't have a generic "ValueChange<String>" event for text
@@ -74,6 +74,16 @@ impl Plugin for TextInputStylePlugin {
         if !app.is_plugin_added::<UpstreamPlugin>() {
             app.add_plugins(UpstreamPlugin);
         }
-        app.add_systems(Update, systems::repaint_text_input);
+        // Focus is a third trigger here, alongside interaction and the
+        // palette: a border drops back to idle when focus *leaves* it,
+        // which is a fact about the resource rather than about the entity
+        // that lost it — so it cannot be a query filter either.
+        app.add_systems(
+            Update,
+            systems::repaint_text_input.run_if(
+                crate::theme::repaint_needed::<TextInput>
+                    .or_else(resource_changed::<bevy::input_focus::InputFocus>),
+            ),
+        );
     }
 }

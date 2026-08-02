@@ -81,8 +81,10 @@ impl Plugin for ListRowPlugin {
         if !app.is_plugin_added::<CursorPlugin>() {
             app.add_plugins(CursorPlugin);
         }
-        app.init_resource::<ListRowTokens>()
-            .add_systems(Update, systems::repaint_rows);
+        app.init_resource::<ListRowTokens>().add_systems(
+            Update,
+            systems::repaint_rows.run_if(crate::theme::repaint_needed::<ListRow>),
+        );
     }
 }
 
@@ -98,7 +100,12 @@ mod tests {
             .init_resource::<Spacing>()
             .init_resource::<FontHandle>()
             .init_resource::<ListRowTokens>()
-            .add_systems(Update, systems::repaint_rows);
+            // Mirrors `ListRowPlugin` — including the run condition, so a
+            // test exercises the same gating production does.
+            .add_systems(
+                Update,
+                systems::repaint_rows.run_if(crate::theme::repaint_needed::<ListRow>),
+            );
         app
     }
 
@@ -249,6 +256,61 @@ mod tests {
         assert_eq!(
             app.world().get::<BackgroundColor>(parts.row).unwrap().0,
             Color::NONE
+        );
+    }
+
+    #[test]
+    fn swapping_the_palette_repaints_a_row_nobody_touched() {
+        // The bug this fixes. `Changed<Interaction>` asks a question about
+        // an entity, and "the theme moved" is not one — so a palette swap
+        // used to repaint nothing at all until the pointer happened to
+        // cross each row in turn.
+        let mut app = test_app();
+        let parts = spawn(&mut app, ListRowSpec::new("id", "Title"));
+        *app.world_mut().get_mut::<Interaction>(parts.row).unwrap() = Interaction::Hovered;
+        app.update();
+
+        let before = app.world().resource::<ColorPalette>().muted;
+        assert_eq!(
+            app.world().get::<BackgroundColor>(parts.row).unwrap().0,
+            before
+        );
+
+        // Nothing touches the row itself — only the palette.
+        let recoloured = Color::srgb(0.9, 0.1, 0.1);
+        app.world_mut().resource_mut::<ColorPalette>().muted = recoloured;
+        app.update();
+
+        assert_eq!(
+            app.world().get::<BackgroundColor>(parts.row).unwrap().0,
+            recoloured,
+            "a palette swap must repaint rows the pointer never visited"
+        );
+    }
+
+    #[test]
+    fn an_idle_frame_leaves_the_row_untouched() {
+        // The other half: dropping the query filter must not turn every
+        // frame into a write. `BackgroundColor` staying unmarked is what
+        // keeps bevy_ui from re-uploading the row on an idle frame.
+        let mut app = test_app();
+        let parts = spawn(&mut app, ListRowSpec::new("id", "Title"));
+        app.update();
+        app.update();
+
+        let tick = app.world().read_change_tick();
+        app.update();
+
+        let changed = app
+            .world()
+            .entity(parts.row)
+            .get_ref::<BackgroundColor>()
+            .expect("row has a background")
+            .last_changed()
+            .is_newer_than(tick, app.world().read_change_tick());
+        assert!(
+            !changed,
+            "an idle frame must not rewrite an unchanged background"
         );
     }
 
