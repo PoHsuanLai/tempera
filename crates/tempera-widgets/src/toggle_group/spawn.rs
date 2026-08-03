@@ -3,15 +3,13 @@ use bevy::prelude::*;
 use bevy::ui_widgets::{Checkbox, RadioButton, RadioGroup};
 
 use super::components::{ToggleGroup, ToggleGroupKind, ToggleItem};
-use crate::theme::{ColorPalette, FontHandle, Spacing, Typography};
-
-const ITEM_HEIGHT: f32 = 28.0;
-const ITEM_PADDING_X: f32 = 12.0;
+use crate::theme::{ColorPalette, ControlSize, FontHandle, Metrics, Spacing, Step, Typography};
 
 /// Tokens read by toggle-group spawn / paint systems.
 #[derive(SystemParam)]
 pub struct ToggleGroupStyle<'w> {
     pub palette: Res<'w, ColorPalette>,
+    pub metrics: Metrics<'w>,
     pub spacing: Res<'w, Spacing>,
     pub typography: Res<'w, Typography>,
     pub font: Res<'w, FontHandle>,
@@ -96,8 +94,8 @@ fn spawn_item(
     let mut e = commands.spawn((
         ToggleItem,
         Node {
-            height: Val::Px(ITEM_HEIGHT),
-            padding: UiRect::horizontal(Val::Px(ITEM_PADDING_X)),
+            height: style.metrics.control(ControlSize::Sm).into(),
+            padding: UiRect::horizontal(Val::Px(style.metrics.gap(Step::new(3)).get())),
             align_items: AlignItems::Center,
             justify_content: JustifyContent::Center,
             border_radius: BorderRadius::all(Val::Px(style.spacing.corner_radius_small - 2.0)),

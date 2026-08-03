@@ -19,6 +19,14 @@ use super::{MenuItemActivated, OpenContextMenu};
 use crate::menu_tokens::MenuStyle;
 
 const Z_MENU: i32 = 3000;
+/// Gap kept between a menu and the window edge when it has to be nudged
+/// back on-screen.
+///
+/// Step 0 on the spacing scale — 4 at the default base. Kept as a const
+/// because `clamp_to_window` below is a pure function used by both the open
+/// path and the submenu path, and threading a resource through it to save one
+/// literal would cost more clarity than it buys. Revisit if the flip logic
+/// ever grows a second spacing value.
 const WINDOW_PADDING: f32 = 4.0;
 
 // ---------------------------------------------------------------------------

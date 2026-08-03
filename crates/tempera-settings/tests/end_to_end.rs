@@ -15,10 +15,13 @@ use tempera_settings::{
 /// build does not park waiting for one.
 fn test_app() -> App {
     let mut app = App::new();
-    app.add_plugins(TemperaSettingsPlugin)
-        .init_resource::<tempera::ColorPalette>()
-        .init_resource::<tempera::Typography>()
-        .init_resource::<tempera::Spacing>()
+    // `ThemePlugin` rather than three hand-rolled `init_resource` calls: the
+    // token set grows (it gained `Tokens` and `ThemeConfig` when the theme
+    // became a function), and a test that lists the resources by hand goes
+    // from green to a `SystemParam` panic the moment a widget reads a new
+    // one. The plugin is idempotent, so this composes with whatever the
+    // settings plugin already installed.
+    app.add_plugins((TemperaSettingsPlugin, tempera::ThemePlugin))
         .init_resource::<Assets<Font>>()
         // Registered here rather than by the plugin: input is the host's,
         // and the crate treats the wheel as optional precisely so an app

@@ -4,16 +4,19 @@ use bevy::ui_widgets::Checkbox;
 
 use super::components::{CheckGlyph, TemperaCheckbox};
 use crate::anim::Spring;
-use crate::theme::{ColorPalette, FontHandle, Typography};
+use crate::theme::{ColorPalette, FontHandle, Metrics, Step, Typography};
 
-const BOX_SIZE: f32 = 16.0;
-const CORNER: f32 = 4.0;
+/// The box's edge, in logical pixels.
+///
+/// A hairline: it answers to the display rather than to the grid, so it does
+/// not scale with the base. One physical pixel is the point.
 const BORDER: f32 = 1.0;
 
 /// Tokens read by checkbox systems.
 #[derive(SystemParam)]
 pub struct CheckboxStyle<'w> {
     pub palette: Res<'w, ColorPalette>,
+    pub metrics: Metrics<'w>,
     pub typography: Res<'w, Typography>,
     pub font: Res<'w, FontHandle>,
 }
@@ -22,6 +25,10 @@ pub struct CheckboxStyle<'w> {
 /// owner). Observe `ValueChange<bool>` on it to react to flips.
 pub fn spawn_checkbox(commands: &mut Commands, style: &CheckboxStyle, checked: bool) -> Entity {
     let initial_t = if checked { 1.0 } else { 0.0 };
+    // Step 4 and step 0 on the spacing scale — 16 and 4 at the default base,
+    // which is what these were written as before the scale could name them.
+    let box_size = style.metrics.gap(Step::new(4)).get();
+    let corner = style.metrics.radius(Step::BASE).get();
     let mut root = commands.spawn((
         Checkbox,
         TemperaCheckbox,
@@ -30,10 +37,10 @@ pub fn spawn_checkbox(commands: &mut Commands, style: &CheckboxStyle, checked: b
         // so the checkmark pops in crisply rather than easing.
         Spring::new(initial_t, initial_t).params(2000.0, 55.0),
         Node {
-            width: Val::Px(BOX_SIZE),
-            height: Val::Px(BOX_SIZE),
+            width: Val::Px(box_size),
+            height: Val::Px(box_size),
             border: UiRect::all(Val::Px(BORDER)),
-            border_radius: BorderRadius::all(Val::Px(CORNER)),
+            border_radius: BorderRadius::all(Val::Px(corner)),
             align_items: AlignItems::Center,
             justify_content: JustifyContent::Center,
             ..default()

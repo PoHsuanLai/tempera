@@ -2,12 +2,37 @@ use bevy::prelude::*;
 
 use super::components::{Tooltip, TooltipArrow, TooltipPopup, TooltipPosition};
 use crate::kbd::KbdKey;
-use crate::theme::{ColorPalette, FontHandle, Typography};
+use crate::theme::{ColorPalette, FontHandle, Step, Tokens, Typography};
 
+/// Half the diagonal of the rotated square that forms the arrow.
+///
+/// **Off the spacing scale deliberately.** The arrow is a square rotated 45°,
+/// so its edge is `ARROW_SIZE * √2` and exactly half of it protrudes past the
+/// popup's border while the other half hides behind it (see `spawn_arrow`).
+/// The number is fixed by that geometry and by meeting a 1px border cleanly;
+/// 4 or 6 leaves a visible seam. It is not a grid value and must not be
+/// snapped to one.
 pub(crate) const ARROW_SIZE: f32 = 5.0;
-pub(crate) const CORNER_RADIUS: f32 = 6.0;
-pub(crate) const PADDING_X: f32 = 12.0;
-pub(crate) const PADDING_Y: f32 = 6.0;
+
+/// The tooltip's own geometry, resolved from the spacing scale.
+///
+/// Steps 1, 3 and 1 — 6, 12 and 6 at the default base, which is what these
+/// were written as before the scale could name them.
+pub(crate) struct TooltipMetrics {
+    pub corner_radius: f32,
+    pub padding_x: f32,
+    pub padding_y: f32,
+}
+
+impl TooltipMetrics {
+    pub(crate) fn from(tokens: &Tokens) -> Self {
+        Self {
+            corner_radius: tokens.scale.radius_at(Step::new(1)).get(),
+            padding_x: tokens.scale.at(Step::new(3)).get(),
+            padding_y: tokens.scale.at(Step::new(1)).get(),
+        }
+    }
+}
 
 /// Spawn the tooltip popup for `target`. Position is computed by
 /// the sync system on the next frame; we drop the popup at the
@@ -24,6 +49,7 @@ pub(crate) fn spawn_popup(
     palette: &ColorPalette,
     typography: &Typography,
     font: &FontHandle,
+    metrics: &TooltipMetrics,
 ) -> Entity {
     // shadcn tooltip is inverted: bg-foreground, text-background.
     let bg = palette.foreground;
@@ -44,9 +70,9 @@ pub(crate) fn spawn_popup(
                 // the user never sees the parked frame.
                 left: Val::Px(target_center.x),
                 top: Val::Px(target_center.y),
-                padding: UiRect::axes(Val::Px(PADDING_X), Val::Px(PADDING_Y)),
+                padding: UiRect::axes(Val::Px(metrics.padding_x), Val::Px(metrics.padding_y)),
                 max_width: Val::Px(tooltip.max_width),
-                border_radius: BorderRadius::all(Val::Px(CORNER_RADIUS)),
+                border_radius: BorderRadius::all(Val::Px(metrics.corner_radius)),
                 // Lay text + shortcut chips out as a row so the kbd
                 // chips sit to the right of the message (matches
                 // shadcn's `<TooltipContent>Save <Kbd>S</Kbd></...>`).

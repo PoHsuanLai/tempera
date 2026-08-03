@@ -17,21 +17,54 @@
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 
+use super::ToastConfig;
 use super::components::{
     Toast, ToastCreated, ToastDuration, ToastExternalProgress, ToastMessage, ToastNodes,
     ToastPosition, ToastShowProgress, ToastSlide, ToastTitle, ToastVariant,
 };
-use super::ToastConfig;
 use crate::anim::Spring;
-use crate::theme::{ColorPalette, FontHandle, Typography};
+use crate::theme::{ColorPalette, FontHandle, Step, Tokens, Typography};
 
-const TOAST_PADDING: f32 = 16.0;
-const TOAST_CORNER_RADIUS: f32 = 8.0;
+/// The toast's own geometry, resolved from the spacing scale.
+///
+/// Five values used to sit here as literals — 16, 8, 8, 16, 2 — every one of
+/// them a member of the scale written out by hand. They are steps 4, 2, 2, 4
+/// and −2, so a change to the base moves them now.
+struct ToastMetrics {
+    padding: f32,
+    corner_radius: f32,
+    spacing: f32,
+    margin: f32,
+    progress_height: f32,
+}
+
+impl ToastMetrics {
+    fn from(tokens: &Tokens) -> Self {
+        let at = |n: i8| tokens.scale.at(Step::new(n)).get();
+        Self {
+            padding: at(4),
+            corner_radius: at(2),
+            spacing: at(2),
+            margin: at(4),
+            progress_height: at(-2),
+        }
+    }
+}
+
+/// Assumed toast height for stacking, in logical pixels.
+///
+/// **Off the scale deliberately, and not a control height either.** A toast is
+/// sized by its own content — a title, a wrapped message, an optional progress
+/// bar — and this is the figure the stack offset assumes before any of that has
+/// been laid out. Snapping it to the grid would make the stack spacing wrong
+/// rather than making it principled.
 const TOAST_HEIGHT: f32 = 70.0;
-const TOAST_SPACING: f32 = 8.0;
-const TOAST_MARGIN: f32 = 16.0;
-const PROGRESS_HEIGHT: f32 = 2.0;
+
 /// Slide offset in logical pixels at slide=0.0 (toast fully off-edge).
+///
+/// An animation distance, not layout: how far off-screen the toast starts.
+/// Nothing aligns to it, so it answers to how the motion reads rather than to
+/// the grid.
 const SLIDE_OFFSET: f32 = 50.0;
 /// Z-order so toasts paint above tooltips and menus.
 const Z_TOAST: i32 = 3000;
@@ -44,6 +77,7 @@ pub(crate) fn reconcile_toast_ui(
     palette: Res<ColorPalette>,
     typography: Res<Typography>,
     font: Res<FontHandle>,
+    tokens: Res<Tokens>,
     config: Res<ToastConfig>,
     toasts: Query<
         (
@@ -57,6 +91,7 @@ pub(crate) fn reconcile_toast_ui(
         (With<Toast>, Without<ToastNodes>),
     >,
 ) {
+    let metrics = ToastMetrics::from(&tokens);
     for (toast, variant, message, title, external_progress, show_progress) in &toasts {
         let nodes = spawn_subtree(
             &mut commands,
@@ -69,6 +104,7 @@ pub(crate) fn reconcile_toast_ui(
             &palette,
             &typography,
             &font,
+            &metrics,
         );
         commands.entity(toast).insert(nodes);
     }
@@ -79,6 +115,7 @@ pub(crate) fn reconcile_toast_ui(
 pub(crate) fn tick_toasts(
     mut commands: Commands,
     time: Res<Time>,
+    tokens: Res<Tokens>,
     config: Res<ToastConfig>,
     window: Query<&Window, With<PrimaryWindow>>,
     mut toasts: Query<
@@ -101,6 +138,7 @@ pub(crate) fn tick_toasts(
         return;
     };
     let window_size = Vec2::new(window.width(), window.height());
+    let metrics = ToastMetrics::from(&tokens);
     let now = time.elapsed_secs();
     let dt = time.delta_secs();
 
@@ -164,10 +202,15 @@ pub(crate) fn tick_toasts(
             .rposition(|(e, _)| *e == entity)
             .map(|pos| total - 1 - pos)
             .unwrap_or(0);
-        let stack_offset = (TOAST_HEIGHT + TOAST_SPACING) * stack_index as f32;
+        let stack_offset = (TOAST_HEIGHT + metrics.spacing) * stack_index as f32;
         let slide_t = slide.value.clamp(0.0, 1.0);
-        let (left, right, top, bottom) =
-            anchor_for(config.position, window_size, stack_offset, slide_t);
+        let (left, right, top, bottom) = anchor_for(
+            config.position,
+            window_size,
+            stack_offset,
+            slide_t,
+            metrics.margin,
+        );
         if let Ok(mut node) = node_q.get_mut(nodes.root) {
             node.left = left;
             node.right = right;
@@ -223,12 +266,13 @@ fn anchor_for(
     window: Vec2,
     stack: f32,
     slide_t: f32,
+    margin: f32,
 ) -> (Val, Val, Val, Val) {
     let slide_in = SLIDE_OFFSET * (1.0 - slide_t);
-    let v_offset = TOAST_MARGIN + stack;
+    let v_offset = margin + stack;
     match position {
         ToastPosition::TopLeft => (
-            Val::Px(TOAST_MARGIN - slide_in),
+            Val::Px(margin - slide_in),
             Val::Auto,
             Val::Px(v_offset),
             Val::Auto,
@@ -239,12 +283,12 @@ fn anchor_for(
         }
         ToastPosition::TopRight => (
             Val::Auto,
-            Val::Px(TOAST_MARGIN - slide_in),
+            Val::Px(margin - slide_in),
             Val::Px(v_offset),
             Val::Auto,
         ),
         ToastPosition::BottomLeft => (
-            Val::Px(TOAST_MARGIN - slide_in),
+            Val::Px(margin - slide_in),
             Val::Auto,
             Val::Auto,
             Val::Px(v_offset),
@@ -255,7 +299,7 @@ fn anchor_for(
         }
         ToastPosition::BottomRight => (
             Val::Auto,
-            Val::Px(TOAST_MARGIN - slide_in),
+            Val::Px(margin - slide_in),
             Val::Auto,
             Val::Px(v_offset),
         ),
@@ -283,6 +327,7 @@ fn spawn_subtree(
     palette: &ColorPalette,
     typography: &Typography,
     font: &FontHandle,
+    metrics: &ToastMetrics,
 ) -> ToastNodes {
     let accent = variant_color(palette, variant);
     let label_font = font.text_font(typography.sm);
@@ -294,10 +339,10 @@ fn spawn_subtree(
                 position_type: PositionType::Absolute,
                 width: Val::Px(width),
                 flex_direction: FlexDirection::Column,
-                padding: UiRect::all(Val::Px(TOAST_PADDING)),
-                border_radius: BorderRadius::all(Val::Px(TOAST_CORNER_RADIUS)),
+                padding: UiRect::all(Val::Px(metrics.padding)),
+                border_radius: BorderRadius::all(Val::Px(metrics.corner_radius)),
                 border: UiRect::all(Val::Px(1.0)),
-                row_gap: Val::Px(TOAST_SPACING),
+                row_gap: Val::Px(metrics.spacing),
                 ..default()
             },
             BackgroundColor(palette.popover),
@@ -313,7 +358,7 @@ fn spawn_subtree(
         .spawn((
             Node {
                 flex_direction: FlexDirection::Row,
-                column_gap: Val::Px(TOAST_SPACING),
+                column_gap: Val::Px(metrics.spacing),
                 align_items: AlignItems::Start,
                 ..default()
             },
@@ -372,8 +417,8 @@ fn spawn_subtree(
             .spawn((
                 Node {
                     width: Val::Percent(100.0),
-                    height: Val::Px(PROGRESS_HEIGHT),
-                    border_radius: BorderRadius::all(Val::Px(PROGRESS_HEIGHT * 0.5)),
+                    height: Val::Px(metrics.progress_height),
+                    border_radius: BorderRadius::all(Val::Px(metrics.progress_height * 0.5)),
                     ..default()
                 },
                 BackgroundColor(palette.muted),
@@ -386,7 +431,7 @@ fn spawn_subtree(
                 Node {
                     width: Val::Percent(0.0),
                     height: Val::Percent(100.0),
-                    border_radius: BorderRadius::all(Val::Px(PROGRESS_HEIGHT * 0.5)),
+                    border_radius: BorderRadius::all(Val::Px(metrics.progress_height * 0.5)),
                     ..default()
                 },
                 BackgroundColor(accent),

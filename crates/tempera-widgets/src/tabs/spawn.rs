@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use bevy::ui_widgets::Button;
 
 use super::components::{TabIndicator, TabTrigger, Tabs, TabsActive};
-use crate::theme::{ColorPalette, FontHandle, Spacing, Typography};
+use crate::theme::{ColorPalette, FontHandle, Metrics, Spacing, Step, Typography};
 
 // Matches the dawai browser default: HEIGHT=26, TRIGGER_PADDING_X=8,
 // INDICATOR_INSET=2. The indicator is a solid `background`-filled
@@ -11,13 +11,28 @@ use crate::theme::{ColorPalette, FontHandle, Spacing, Typography};
 // shadcn/ui Tabs and `armas-basic::Tabs`. (armas default is 28 but
 // dawai's panels all override to 26 — picking the smaller as the
 // tempera default eliminates the per-call override.)
+/// Height of the whole tab strip.
+///
+/// **A stray**, kept as a literal for now: 26 is not on the spacing scale and
+/// is not one of the declared control heights either — the nearest,
+/// `control_sm`, is 28. Snapping it moves the strip two pixels, which is a
+/// visible change and belongs in its own reviewable commit.
 const HEIGHT: f32 = 26.0;
-const TRIGGER_PADDING_X: f32 = 8.0;
+
+/// Gap between the strip's edge and the indicator inside it.
+///
+/// Read from the scale (step −2) at spawn, but kept as a const because
+/// `move_indicator` needs the same number every frame to position the
+/// indicator, and the two must agree *exactly* or the indicator sits crooked
+/// against the container padding it is supposed to nest inside. That is a
+/// relationship between two values rather than a grid value, so it is
+/// declared once and shared rather than looked up twice.
 pub(crate) const INDICATOR_INSET: f32 = 2.0;
 
 #[derive(SystemParam)]
 pub struct TabsStyle<'w> {
     pub palette: Res<'w, ColorPalette>,
+    pub metrics: Metrics<'w>,
     pub spacing: Res<'w, Spacing>,
     pub typography: Res<'w, Typography>,
     pub font: Res<'w, FontHandle>,
@@ -90,7 +105,7 @@ pub fn spawn_tabs(
                     flex_grow: 1.0,
                     flex_basis: Val::Px(0.0),
                     height: Val::Px(HEIGHT - INDICATOR_INSET * 2.0),
-                    padding: UiRect::horizontal(Val::Px(TRIGGER_PADDING_X)),
+                    padding: UiRect::horizontal(Val::Px(style.metrics.gap(Step::new(2)).get())),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
                     ..default()
