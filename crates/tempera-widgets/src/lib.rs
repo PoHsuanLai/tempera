@@ -249,3 +249,80 @@ mod styled_widgets_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod token_scale_tests {
+    use crate::list_row::ListRowTokens;
+    use crate::setting_row::SettingRowTokens;
+    use crate::theme::{Base, Scale};
+    use crate::tree_row::TreeRowTokens;
+
+    #[test]
+    fn the_generated_defaults_are_the_shipped_values() {
+        // This change is meant to be invisible: the defaults are now named
+        // steps rather than literals, and at base 4 they must land on
+        // exactly what they always were.
+        let l = ListRowTokens::default();
+        assert_eq!(
+            (
+                l.padding_x,
+                l.padding_y,
+                l.row_gap,
+                l.column_gap,
+                l.corner_radius
+            ),
+            (24.0, 8.0, 12.0, 16.0, 2.0)
+        );
+
+        let t = TreeRowTokens::default();
+        assert_eq!((t.indent_step, t.corner_radius), (8.0, 2.0));
+        assert_eq!(
+            (t.height, t.icon_size),
+            (22.0, 14.0),
+            "the strays stayed put"
+        );
+
+        let s = SettingRowTokens::default();
+        assert_eq!((s.padding_x, s.padding_y, s.row_gap), (24.0, 8.0, 12.0));
+        assert_eq!(
+            (s.section_gap, s.row_height, s.control_width),
+            (18.0, 36.0, 200.0),
+            "the off-scale values stayed put"
+        );
+    }
+
+    #[test]
+    fn a_coarser_base_scales_the_generated_fields_and_leaves_the_rest() {
+        // What generating the defaults buys: one input moves and the values
+        // that answer to the grid follow, while content measures and
+        // deliberately off-scale figures do not.
+        let coarse = Scale::new(Base::EIGHT);
+        let l = ListRowTokens::from_scale(coarse);
+        let base4 = ListRowTokens::default();
+
+        assert_eq!(l.padding_x, base4.padding_x * 2.0);
+        assert_eq!(l.row_gap, base4.row_gap * 2.0);
+        assert_eq!(
+            l.trail_min_width, base4.trail_min_width,
+            "a content measure does not follow the grid"
+        );
+
+        let s = SettingRowTokens::from_scale(coarse);
+        assert_eq!(s.padding_y, SettingRowTokens::default().padding_y * 2.0);
+        assert_eq!(s.control_width, 200.0);
+        assert_eq!(s.row_height, 36.0, "an off-scale height is not swept along");
+    }
+
+    #[test]
+    fn overriding_a_token_still_works() {
+        // The reason these stay `Resource`s with public fields. Generating a
+        // default must not turn a tunable into a fixed value — a host that
+        // wants a denser row still writes one.
+        let l = ListRowTokens {
+            padding_x: 6.0,
+            ..Default::default()
+        };
+        assert_eq!(l.padding_x, 6.0);
+        assert_eq!(l.row_gap, 12.0, "the rest still comes from the scale");
+    }
+}

@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use super::components::{
     SettingRow, SettingRowControl, SettingRowDescription, SettingRowLabel, SettingSection,
 };
-use crate::theme::{ColorPalette, FontHandle, Spacing, Typography};
+use crate::theme::{Base, ColorPalette, FontHandle, Scale, Spacing, Step, Typography};
 
 /// Row metrics.
 ///
@@ -32,12 +32,36 @@ pub struct SettingRowTokens {
 
 impl Default for SettingRowTokens {
     fn default() -> Self {
+        Self::from_scale(Scale::new(Base::default()))
+    }
+}
+
+impl SettingRowTokens {
+    /// The defaults, generated from a spacing scale.
+    ///
+    /// `padding_x`, `padding_y` and `row_gap` are steps 5, 2 and 3. The rest
+    /// are not scale members and stay literals with their reasons.
+    ///
+    /// Public fields on a `Resource`: overriding these is how a host tunes
+    /// the settings surface, and a generated default is not a reason to take
+    /// that away.
+    #[must_use]
+    pub fn from_scale(scale: Scale) -> Self {
+        let at = |n: i8| scale.at(Step::new(n)).get();
         Self {
-            padding_x: 24.0,
-            padding_y: 8.0,
-            row_gap: 12.0,
+            padding_x: at(5),
+            padding_y: at(2),
+            row_gap: at(3),
+            // Off-scale: 18 sits between steps 4 and 3 (16 and 24). Snapping
+            // it to 24 would make section:row exactly 2:1, which is arguably
+            // better — but it moves pixels, so it belongs in a change
+            // reviewed on appearance rather than this one.
             section_gap: 18.0,
+            // The same 36 the command palette carried before it snapped to
+            // `control_md`. Left for the same reason as `section_gap`.
             row_height: 36.0,
+            // A content measure: how wide a control column needs to be for
+            // the widgets that sit in it. No scale predicts that.
             control_width: 200.0,
         }
     }

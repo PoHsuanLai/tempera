@@ -5,7 +5,7 @@ use super::components::{
     ChevronState, TreeRow, TreeRowChevron, TreeRowExpanded, TreeRowHeader, TreeRowLabel,
     TreeRowSuffix,
 };
-use crate::theme::{ColorPalette, FontHandle, Spacing, Typography};
+use crate::theme::{Base, ColorPalette, FontHandle, Scale, Spacing, Step, Typography};
 
 /// Row metrics, and the chevron art.
 ///
@@ -40,11 +40,34 @@ pub struct TreeRowTokens {
 
 impl Default for TreeRowTokens {
     fn default() -> Self {
+        Self::from_scale(Scale::new(Base::default()))
+    }
+}
+
+impl TreeRowTokens {
+    /// The defaults, generated from a spacing scale.
+    ///
+    /// `indent_step` and `corner_radius` are scale members — steps 2 and −2
+    /// — so they are named rather than restated. The other two are not, and
+    /// stay literals with the reason written down.
+    ///
+    /// Public fields on a `Resource`: overriding these is how a host tunes a
+    /// tree for its own panel, and generating the default is not a reason to
+    /// take that away.
+    #[must_use]
+    pub fn from_scale(scale: Scale) -> Self {
+        let at = |n: i8| scale.at(Step::new(n)).get();
         Self {
+            // Off the scale and off `Sizing` deliberately: a tree row is
+            // denser than a control (`control_sm` is 28), and at 22 with a
+            // 14px icon the gutter is 4 — step 0 — so the row is internally
+            // coherent even though its own height is not a scale member.
             height: 22.0,
-            indent_step: 8.0,
+            indent_step: at(2),
+            // Sized against the row rather than the grid, for the gutter
+            // above.
             icon_size: 14.0,
-            corner_radius: 2.0,
+            corner_radius: at(-2),
             chevron_expanded: None,
             chevron_collapsed: None,
             label_max_chars: Some(18),
