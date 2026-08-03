@@ -22,6 +22,8 @@ pub(crate) struct TooltipMetrics {
     pub corner_radius: f32,
     pub padding_x: f32,
     pub padding_y: f32,
+    /// Gap between the tooltip's label and a shortcut chip beside it.
+    pub gap_between_label_and_chip: f32,
 }
 
 impl TooltipMetrics {
@@ -30,6 +32,7 @@ impl TooltipMetrics {
             corner_radius: tokens.scale.radius_at(Step::new(1)).get(),
             padding_x: tokens.scale.at(Step::new(3)).get(),
             padding_y: tokens.scale.at(Step::new(1)).get(),
+            gap_between_label_and_chip: tokens.scale.at(Step::new(2)).get(),
         }
     }
 }
@@ -78,7 +81,7 @@ pub(crate) fn spawn_popup(
                 // shadcn's `<TooltipContent>Save <Kbd>S</Kbd></...>`).
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
-                column_gap: Val::Px(8.0),
+                column_gap: Val::Px(metrics.gap_between_label_and_chip),
                 ..default()
             },
             // Spawn invisible — the sync system flips this to

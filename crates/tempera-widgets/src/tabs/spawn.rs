@@ -3,7 +3,9 @@ use bevy::prelude::*;
 use bevy::ui_widgets::Button;
 
 use super::components::{TabIndicator, TabTrigger, Tabs, TabsActive};
-use crate::theme::{ColorPalette, ControlSize, FontHandle, Metrics, Spacing, Step, Typography};
+use crate::theme::{
+    ColorPalette, ControlSize, FontHandle, Metrics, Spacing, Step, StyledNode, Typography,
+};
 
 // Matches the dawai browser default: HEIGHT=26, TRIGGER_PADDING_X=8,
 // INDICATOR_INSET=2. The indicator is a solid `background`-filled
@@ -44,12 +46,13 @@ pub fn spawn_tabs(
     let root = commands
         .spawn((
             Tabs,
+            StyledNode::new()
+                .height(ControlSize::Sm)
+                .radius(Step::new(1)),
             TabsActive(active),
             Node {
                 flex_direction: FlexDirection::Row,
-                height: style.metrics.control(ControlSize::Sm).into(),
                 padding: UiRect::all(Val::Px(INDICATOR_INSET)),
-                border_radius: BorderRadius::all(Val::Px(style.spacing.corner_radius_small)),
                 position_type: PositionType::Relative,
                 // Full-width by default — every trigger flex-grows to
                 // share the row equally (matches armas-basic Tabs and
