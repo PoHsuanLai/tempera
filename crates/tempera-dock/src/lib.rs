@@ -104,6 +104,7 @@ pub mod registry;
 pub mod resize;
 pub mod tree;
 pub mod visibility;
+pub mod window_chrome;
 
 pub use build::DockBuildSet;
 pub use mutate::{DockCommands, Side};
