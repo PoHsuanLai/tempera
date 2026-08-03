@@ -15,10 +15,29 @@ description = "Theme-aware UI widgets for bevy_ui — retained-mode, ECS-native"
 [lib]
 name = "tempera"
 
+[features]
+default = []
+# SVG icon loading. Every widget that shows an icon takes a
+# `Handle<Image>` and never produces one, so a consumer must bring its own
+# way of making them. With this on, `bevy_resvg` registers an asset loader
+# and `asset_server.load("icons/search.svg")` works — see `crate::svg`.
+#
+# Off by default because it is not free: `bevy_resvg` declares no features
+# of its own and pulls `bevy/bevy_sprite_render`, which tempera otherwise
+# does not need. A consumer shipping pre-rendered PNGs already has
+# everything it needs from `bevy`'s own image loaders and should leave this
+# alone.
+svg = ["dep:bevy_resvg"]
+
 [dependencies]
 # The design tokens. Re-exported as `tempera::theme`, so a consumer that wants
 # widgets and tokens together keeps writing one path.
 tempera-theme.workspace = true
+# SVG → `Image` asset loader, behind the `svg` feature. resvg under the
+# hood, but the part that matters is the *loader*: icons resolve lazily
+# through `AssetServer`, cached and refcounted, instead of a startup pass
+# that rasterises every icon whether or not it is ever shown.
+bevy_resvg = { version = "2.5", optional = true }
 # Fork with `InputDispatchPlugin` registration guard so tempera's
 # other widget plugins (button/slider/etc.) can also install it
 # without panicking. Drop the fork when upstream merges the fix.

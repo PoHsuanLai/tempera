@@ -51,6 +51,8 @@ pub mod select;
 pub mod separator;
 pub mod setting_row;
 pub mod slider;
+#[cfg(feature = "svg")]
+pub mod svg;
 pub mod switch;
 pub mod tabs;
 pub mod text_input;
@@ -110,6 +112,8 @@ pub mod prelude {
         Slider, SliderRange, SliderSize, SliderStep, SliderStyle, SliderStylePlugin, SliderThumb,
         SliderValue, ValueChange, spawn_slider,
     };
+    #[cfg(feature = "svg")]
+    pub use crate::svg::{SvgIcons, TemperaSvgPlugin};
     pub use crate::switch::{
         Switch, SwitchSize, SwitchStyle, SwitchStylePlugin, SwitchThumb, spawn_switch,
     };
