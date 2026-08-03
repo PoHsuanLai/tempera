@@ -3,7 +3,7 @@ use bevy::ui::{Checked, InteractionDisabled};
 
 use super::components::{CheckGlyph, TemperaCheckbox};
 use crate::anim::Spring;
-use crate::theme::ColorPalette;
+use crate::theme::{ColorPalette, HOVER};
 
 /// Re-target the spring on `Checked` flips. Runs unfiltered every
 /// frame: `Checked` is a marker that's *removed* on toggle-off, and
@@ -54,7 +54,7 @@ pub(crate) fn repaint_checkbox(
             palette.input
         };
         let edge = if hovered {
-            ColorPalette::step(base_edge, palette.background, 0.12)
+            ColorPalette::step(base_edge, palette.background, HOVER)
         } else {
             base_edge
         };

@@ -68,7 +68,7 @@ pub use contrast::MAX_STEP;
 pub use metrics::{ControlSize, Metrics};
 pub use scale::{ControlHeight, FontSize as TextSize, Gap, Radius, Scale};
 pub use styled::{StyledNode, apply_styled_nodes};
-pub use surface::{Emphasis, Reactivity, Surface, SurfaceVisuals, visuals};
+pub use surface::{Emphasis, HOVER, PRESS, Reactivity, SELECT, Surface, SurfaceVisuals, visuals};
 
 // ---------------------------------------------------------------------------
 // Plugin

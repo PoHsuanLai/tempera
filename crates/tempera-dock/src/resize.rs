@@ -265,10 +265,28 @@ pub(crate) fn on_divider_out(
 ///
 /// The surface is `background`: a divider separates panels, and what it has to
 /// stand out against is the shell behind them.
+///
+/// # Why this is not [`tempera_theme::HOVER`]
+///
+/// Every other hover in tempera moves a colour the user can already see, and
+/// answers "is this visibly different from a moment ago" — 0.08 is that
+/// answer, shared by the button, the input, the checkbox, the switch and the
+/// slider.
+///
+/// A divider rests at [`Color::NONE`]. It is not moving a visible colour; it
+/// is *appearing*, and the question is "can this be seen at all against the
+/// panels beside it". Those are different questions, and the second one wants
+/// a bigger number — 0.08 off `border` produces a seam that is technically
+/// present and practically invisible on a hairline 8px wide.
+///
+/// So the divergence is deliberate and stays. It is recorded here because it
+/// looked like one of the four undocumented hover amounts and is not.
+const DIVIDER_TINT: f32 = 0.15;
+
 fn hover_tint(style: &DividerStyle, palette: Option<&ColorPalette>) -> Option<Color> {
     style
         .hover
-        .or_else(|| palette.map(|p| ColorPalette::step(p.border, p.background, 0.15)))
+        .or_else(|| palette.map(|p| ColorPalette::step(p.border, p.background, DIVIDER_TINT)))
 }
 
 #[cfg(test)]

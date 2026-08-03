@@ -6,7 +6,7 @@ use bevy::ui::{ComputedNode, InteractionDisabled};
 use bevy::ui_widgets::{Slider, SliderRange, SliderThumb, SliderValue};
 
 use super::components::{SliderFill, SliderSize, SliderTrack};
-use crate::theme::ColorPalette;
+use crate::theme::{ColorPalette, HOVER};
 
 /// Read-side projection over a slider entity used by paint systems.
 #[derive(QueryData)]
@@ -89,7 +89,7 @@ pub(crate) fn repaint_slider(
                 let color = if disabled {
                     palette.muted_foreground
                 } else if hovered {
-                    ColorPalette::step(palette.primary, palette.background, 0.08)
+                    ColorPalette::step(palette.primary, palette.background, HOVER)
                 } else {
                     palette.primary
                 };

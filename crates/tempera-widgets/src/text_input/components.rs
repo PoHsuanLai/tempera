@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::theme::ColorPalette;
+use crate::theme::{ColorPalette, HOVER};
 
 /// Tempera marker on a styled text-input root. The behavior layer is
 /// [`bevy_ui_text_input::TextInputNode`] (added as a child of the
@@ -136,12 +136,6 @@ impl TextInputVariant {
     }
 }
 
-/// How far hover moves whichever channel carries it.
-///
-/// The same 0.08 the surface grid uses for a button's hover. It was 0.12 here
-/// and 0.06 on the switch and 0.08 on the slider, four undocumented numbers
-/// for one idea; the grid is what makes them comparable.
-const HOVER: f32 = 0.08;
 
 #[cfg(test)]
 mod tests {

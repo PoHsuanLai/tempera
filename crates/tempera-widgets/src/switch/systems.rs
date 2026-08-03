@@ -3,7 +3,7 @@ use bevy::ui::{Checked, InteractionDisabled};
 
 use super::components::{Switch, SwitchSize, SwitchThumb};
 use crate::anim::Spring;
-use crate::theme::ColorPalette;
+use crate::theme::{ColorPalette, HOVER};
 
 /// Set the spring target whenever `Checked` flips. The actual thumb
 /// position is interpolated each frame by [`drive_switch`].
@@ -52,7 +52,7 @@ pub(crate) fn repaint_switch_track(
             palette.muted
         };
         let fill = if hovered {
-            ColorPalette::step(base, palette.background, 0.06)
+            ColorPalette::step(base, palette.background, HOVER)
         } else {
             base
         };
