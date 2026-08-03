@@ -237,24 +237,53 @@ impl VariantVisuals {
         } else {
             self.bg_resting
         };
-        ColorPalette::hover_lift(base, 0.04)
+        ColorPalette::step(base, palette.background, 0.04)
     }
+}
+
+/// A button's hover fill: one step away from the page.
+///
+/// Wraps [`ColorPalette::step`] only to name the surface once — every button
+/// in tempera sits on `background`, and a variant that sits on a card or a
+/// popover would pass its own surface here instead.
+fn hover(base: Color, palette: &ColorPalette) -> Color {
+    ColorPalette::step(base, palette.background, 0.08)
+}
+
+/// A button's pressed fill: a **further** step in the same direction as
+/// [`hover`].
+///
+/// Press is only ever seen as a change *from* the hovered colour, because the
+/// pointer is already on the button — so what has to be visible is
+/// hover → pressed, not resting → pressed.
+///
+/// The obvious alternative is to reverse direction, which is what the old
+/// `lighten`-hover / `darken`-pressed pairing did. That reads well on a dark
+/// palette and breaks on a light one, in a way worth recording: reversing
+/// means moving *toward* the surface, and for a fill already close to it
+/// there is nowhere to go. `secondary` in the light theme is `(244,244,245)`
+/// on a `(255,255,255)` page — a reversed pressed step lands exactly on
+/// `(255,255,255)`, so pressing a secondary button would erase it. Stepping
+/// further away cannot do that, because the direction is the one chosen for
+/// having room in it.
+fn pressed(base: Color, palette: &ColorPalette) -> Color {
+    ColorPalette::step(base, palette.background, 0.14)
 }
 
 pub(crate) fn variant_visuals(variant: ButtonVariant, palette: &ColorPalette) -> VariantVisuals {
     match variant {
         ButtonVariant::Default => VariantVisuals {
             bg_resting: palette.primary,
-            bg_hover: lighten(palette.primary, 0.08),
-            bg_pressed: darken(palette.primary, 0.08),
+            bg_hover: hover(palette.primary, palette),
+            bg_pressed: pressed(palette.primary, palette),
             border_resting: Color::NONE,
             border_width: 0.0,
             fg_resting: palette.primary_foreground,
         },
         ButtonVariant::Secondary => VariantVisuals {
             bg_resting: palette.secondary,
-            bg_hover: lighten(palette.secondary, 0.08),
-            bg_pressed: darken(palette.secondary, 0.08),
+            bg_hover: hover(palette.secondary, palette),
+            bg_pressed: pressed(palette.secondary, palette),
             border_resting: Color::NONE,
             border_width: 0.0,
             fg_resting: palette.secondary_foreground,
@@ -262,7 +291,7 @@ pub(crate) fn variant_visuals(variant: ButtonVariant, palette: &ColorPalette) ->
         ButtonVariant::Outline => VariantVisuals {
             bg_resting: Color::NONE,
             bg_hover: palette.muted,
-            bg_pressed: darken(palette.muted, 0.06),
+            bg_pressed: pressed(palette.muted, palette),
             border_resting: palette.border,
             border_width: 1.0,
             fg_resting: palette.foreground,
@@ -270,7 +299,7 @@ pub(crate) fn variant_visuals(variant: ButtonVariant, palette: &ColorPalette) ->
         ButtonVariant::Ghost => VariantVisuals {
             bg_resting: Color::NONE,
             bg_hover: palette.muted,
-            bg_pressed: darken(palette.muted, 0.06),
+            bg_pressed: pressed(palette.muted, palette),
             border_resting: Color::NONE,
             border_width: 0.0,
             fg_resting: palette.foreground,
@@ -293,8 +322,8 @@ pub(crate) fn variant_visuals(variant: ButtonVariant, palette: &ColorPalette) ->
         },
         ButtonVariant::Destructive => VariantVisuals {
             bg_resting: palette.destructive,
-            bg_hover: lighten(palette.destructive, 0.08),
-            bg_pressed: darken(palette.destructive, 0.08),
+            bg_hover: hover(palette.destructive, palette),
+            bg_pressed: pressed(palette.destructive, palette),
             border_resting: Color::NONE,
             border_width: 0.0,
             fg_resting: palette.destructive_foreground,
@@ -302,22 +331,4 @@ pub(crate) fn variant_visuals(variant: ButtonVariant, palette: &ColorPalette) ->
     }
 }
 
-fn lighten(c: Color, amount: f32) -> Color {
-    let s = c.to_srgba();
-    Color::srgba(
-        (s.red + amount).clamp(0.0, 1.0),
-        (s.green + amount).clamp(0.0, 1.0),
-        (s.blue + amount).clamp(0.0, 1.0),
-        s.alpha,
-    )
-}
 
-fn darken(c: Color, amount: f32) -> Color {
-    let s = c.to_srgba();
-    Color::srgba(
-        (s.red - amount).clamp(0.0, 1.0),
-        (s.green - amount).clamp(0.0, 1.0),
-        (s.blue - amount).clamp(0.0, 1.0),
-        s.alpha,
-    )
-}

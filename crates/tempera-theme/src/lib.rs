@@ -56,12 +56,14 @@ use bevy::prelude::*;
 
 mod base;
 mod config;
+mod contrast;
 mod metrics;
 mod scale;
 mod styled;
 
 pub use base::{Base, Step};
 pub use config::{Density, Incoherent, Sizing, TextScale, ThemeConfig, Tokens};
+pub use contrast::MAX_STEP;
 pub use metrics::{ControlSize, Metrics};
 pub use scale::{ControlHeight, FontSize as TextSize, Gap, Radius, Scale};
 pub use styled::{StyledNode, apply_styled_nodes};
@@ -204,22 +206,6 @@ pub struct ColorPalette {
 }
 
 impl ColorPalette {
-    /// Lift a base color toward white by a small fixed amount — the
-    /// canonical "hover" brightening. Use this when a widget needs a
-    /// hover tint that doesn't already exist in the palette as its own
-    /// token.
-    #[inline]
-    #[must_use]
-    pub fn hover_lift(base: Color, amount: f32) -> Color {
-        let s = base.to_srgba();
-        Color::srgba(
-            (s.red + amount).clamp(0.0, 1.0),
-            (s.green + amount).clamp(0.0, 1.0),
-            (s.blue + amount).clamp(0.0, 1.0),
-            s.alpha,
-        )
-    }
-
     /// shadcn zinc dark palette.
     #[must_use]
     pub fn dark() -> Self {
