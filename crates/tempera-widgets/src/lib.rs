@@ -50,7 +50,9 @@ pub mod tooltip;
 pub mod tree_row;
 
 pub use theme::{
-    ColorPalette, FontHandle, MenuStyle, MenuTokens, Spacing, ThemePlugin, Typography,
+    Base, ColorPalette, ControlHeight, Density, FontHandle, Gap, Incoherent, MenuStyle, MenuTokens,
+    Radius, Scale, Sizing, Spacing, Step, TextScale, TextSize, ThemeConfig, ThemePlugin, Tokens,
+    Typography,
 };
 
 pub mod prelude {
