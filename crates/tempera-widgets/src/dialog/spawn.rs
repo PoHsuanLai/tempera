@@ -5,7 +5,7 @@ use bevy::prelude::*;
 use super::components::{Dialog, DialogBackdrop, DialogCard, DialogClose, DialogContent};
 use super::messages::DialogDismissed;
 use super::systems::Z_DIALOG;
-use crate::theme::{ColorPalette, FontHandle, Metrics, Step, Typography};
+use crate::theme::{ColorPalette, ControlSize, FontHandle, Metrics, Step, Typography};
 
 /// Default card width / height — sized for a settings-style modal.
 pub const CARD_WIDTH: f32 = 720.0;
@@ -17,8 +17,19 @@ pub const CARD_HEIGHT: f32 = 480.0;
 /// comes from the scale rather than from this literal.
 pub const CARD_RADIUS: f32 = 12.0;
 pub const CARD_PADDING: f32 = 0.0;
+/// Title bar height.
+///
+/// `control_lg` — the declared large control height, which is what a title bar
+/// is. This was a bare 44.0 and got hand-copied downstream as one.
 pub const TITLE_BAR_HEIGHT: f32 = 44.0;
-pub const TITLE_BAR_PADDING_X: f32 = 18.0;
+/// Horizontal padding inside the title bar.
+///
+/// Step 4 — 16 at the default base. Was 18, which is off the scale and, more
+/// to the point, bears no relation to the 12px card radius it sits inside. At
+/// 16 the gap between the card's corner and the bar's content is 4, which is
+/// `Radius::concentric_inner(12, 4)` — the one relationship in the theme with
+/// a proof behind it.
+pub const TITLE_BAR_PADDING_X: f32 = 16.0;
 
 /// The slice of theme tokens read by dialog spawn.
 #[derive(SystemParam)]
@@ -209,8 +220,8 @@ pub fn spawn_dialog(
             .spawn((
                 Node {
                     width: Val::Percent(100.0),
-                    height: Val::Px(TITLE_BAR_HEIGHT),
-                    padding: UiRect::axes(Val::Px(TITLE_BAR_PADDING_X), Val::Px(0.0)),
+                    height: style.metrics.control(ControlSize::Lg).into(),
+                    padding: UiRect::axes(style.metrics.gap(Step::new(4)).into(), Val::Px(0.0)),
                     flex_direction: FlexDirection::Row,
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::SpaceBetween,

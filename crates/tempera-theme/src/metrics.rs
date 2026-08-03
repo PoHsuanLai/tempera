@@ -265,4 +265,49 @@ mod tests {
         // toggle_group item height
         assert_eq!(t.sizing.get(ControlSize::Sm).get(), 28.0);
     }
+
+    #[test]
+    fn snapping_a_stray_puts_its_derived_values_on_the_scale_too() {
+        // The argument for moving these was not "36 is not a round number".
+        // It was that each stray had something *derived* from it, and the
+        // derived value was off the scale as well — so the old number was
+        // less coherent, not merely different.
+        let t = crate::ThemeConfig::default().build().unwrap();
+        let on_scale = |v: f32| (-3i8..9).any(|n| t.scale.at(Step::new(n)).get() == v);
+
+        // A command-palette row contains a 16px icon. At the old height of 36
+        // the vertical gutter was 10, which is on no scale; at `control_md`
+        // it is 8, which is step 2.
+        let item = t.sizing.get(ControlSize::Md).get();
+        assert_eq!(item, 32.0);
+        assert!(
+            on_scale((item - 16.0) / 2.0),
+            "the icon's gutter is on-scale"
+        );
+        assert!(!on_scale((36.0 - 16.0) / 2.0), "at 36 it was not");
+
+        // A tab trigger is `strip - 2 * inset`. At the old strip height of 26
+        // that was 22; at `control_sm` it is 24, which is step 5.
+        let strip = t.sizing.get(ControlSize::Sm).get();
+        assert_eq!(strip, 28.0);
+        assert!(
+            on_scale(strip - 2.0 * 2.0),
+            "the trigger's height is on-scale"
+        );
+        assert!(!on_scale(26.0 - 2.0 * 2.0), "at 26 it was not");
+
+        // The dialog's title bar sits inside a 12px card radius. At 16 of
+        // padding the offset between the two is 4 — which is exactly what
+        // `concentric_inner` describes. At 18 it was 6, which is on the scale
+        // by coincidence but is not the concentric answer.
+        let radius = t.scale.radius_at(Step::new(3));
+        let padding = t.scale.at(Step::new(4));
+        assert_eq!(radius.get(), 12.0);
+        assert_eq!(padding.get(), 16.0);
+        assert_eq!(
+            radius.concentric_inner(t.scale.at(Step::BASE)).get(),
+            8.0,
+            "a child inset by 4 from a 12px corner nests at 8"
+        );
+    }
 }

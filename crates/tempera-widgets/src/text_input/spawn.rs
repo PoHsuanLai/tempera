@@ -106,7 +106,13 @@ pub fn spawn_text_input_with_icon(
     spawn_text_input_inner(commands, style, initial, placeholder, Some(icon))
 }
 
-const ICON_SIZE: f32 = 14.0;
+/// The leading icon's box.
+///
+/// Half the control's height, which is the same rule `spawn_button` applies to
+/// a text-bearing button's icon (`height * 0.5`) and the same 16 the command
+/// palette uses in an identical row. It was 14, which put the vertical gutter
+/// at 9 — off the scale, and inconsistent with both neighbours.
+const ICON_SIZE: f32 = 16.0;
 
 fn spawn_text_input_inner(
     commands: &mut Commands,
