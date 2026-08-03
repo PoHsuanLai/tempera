@@ -8,15 +8,15 @@ use bevy::input::ButtonInput;
 use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::picking::Pickable;
 use bevy::prelude::*;
+use bevy::ui::UiGlobalTransform;
 use bevy::ui::{FocusPolicy, InteractionDisabled};
 use bevy::ui_widgets::{Activate, MenuAction, MenuEvent, MenuItem as BevyMenuItem, MenuPopup};
-use bevy::ui::UiGlobalTransform;
 use bevy::window::PrimaryWindow;
 
 use super::components::{HasSubMenu, MenuRootMarker, SubMenuChild, SubMenuOf, TemperaMenuItem};
 use super::request::{MenuItemSpec, MenuRequest};
 use super::{MenuItemActivated, OpenContextMenu};
-use crate::theme::MenuStyle;
+use crate::menu_tokens::MenuStyle;
 
 const Z_MENU: i32 = 3000;
 const WINDOW_PADDING: f32 = 4.0;
@@ -260,9 +260,7 @@ pub fn observe_submenu_hover(app: &mut bevy::app::App) {
 
     // Pointer enters a HasSubMenu item → mark hovered, cancel any pending close.
     app.add_observer(
-        |trigger: On<Pointer<Over>>,
-         mut commands: Commands,
-         q: Query<(), With<HasSubMenu>>| {
+        |trigger: On<Pointer<Over>>, mut commands: Commands, q: Query<(), With<HasSubMenu>>| {
             if q.contains(trigger.entity) {
                 commands
                     .entity(trigger.entity)
@@ -311,7 +309,14 @@ pub fn observe_submenu_hover(app: &mut bevy::app::App) {
     app.add_observer(
         |trigger: On<Pointer<Over>>,
          mut commands: Commands,
-         items: Query<(), (With<TemperaMenuItem>, Without<HasSubMenu>, Without<SubMenuChild>)>,
+         items: Query<
+            (),
+            (
+                With<TemperaMenuItem>,
+                Without<HasSubMenu>,
+                Without<SubMenuChild>,
+            ),
+        >,
          subs: Query<Entity, With<SubMenuOf>>,
          timers: Query<Entity, With<SubMenuCloseTimer>>| {
             if items.contains(trigger.entity) {
@@ -362,10 +367,7 @@ pub fn manage_submenus(
     windows: Query<&Window, With<PrimaryWindow>>,
     style: MenuStyle,
 ) {
-    let scale = windows
-        .single()
-        .map(|w| w.scale_factor())
-        .unwrap_or(1.0);
+    let scale = windows.single().map(|w| w.scale_factor()).unwrap_or(1.0);
 
     for (item_entity, sub, node, ui_gt) in hovered_items.iter() {
         let already_open = existing_subs
@@ -445,11 +447,8 @@ pub fn manage_submenus(
 /// fight over it.
 pub fn paint_item_highlight(
     focus: Res<bevy::input_focus::InputFocus>,
-    mut items: Query<
-        (Entity, &Interaction, &mut BackgroundColor),
-        With<TemperaMenuItem>,
-    >,
-    menu: Res<crate::theme::MenuTokens>,
+    mut items: Query<(Entity, &Interaction, &mut BackgroundColor), With<TemperaMenuItem>>,
+    menu: Res<crate::menu_tokens::MenuTokens>,
 ) {
     let focused = focus.get();
     for (entity, interaction, mut bg) in &mut items {

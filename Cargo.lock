@@ -5173,7 +5173,7 @@ dependencies = [
  "bevy",
  "ron",
  "serde",
- "tempera-widgets",
+ "tempera-theme",
  "tracing",
 ]
 
@@ -5201,6 +5201,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "tempera-theme"
+version = "0.2.0"
+dependencies = [
+ "bevy",
+]
+
+[[package]]
 name = "tempera-tree"
 version = "0.2.0"
 dependencies = [
@@ -5217,6 +5224,7 @@ dependencies = [
  "bevy",
  "bevy_ui_text_input",
  "leafwing-input-manager",
+ "tempera-theme",
 ]
 
 [[package]]

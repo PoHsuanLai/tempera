@@ -1,18 +1,44 @@
-//! Theme tokens — composed from small, independent sub-resources.
+//! Design tokens for `bevy_ui` — a generated spacing scale, a palette, and a
+//! type ramp.
 //!
-//! Each token bucket is its own [`Resource`] so widget systems only
-//! declare the slice they actually read. A typography system doesn't
-//! need to fight the color palette for scheduling slots, and the menu
-//! sizing tokens don't have to ride along on every button repaint.
+//! # This crate does not know what a button is
+//!
+//! Nothing here names a widget type. The only thing borrowed from the UI
+//! layer is [`bevy::ui::Val`], for the `From` impls that let a token be
+//! assigned straight into a `Node` field. That is what makes the tokens
+//! separately depend-able: a crate that needs to know what colour the surface
+//! is should not have to compile a text-input widget to find out.
+//!
+//! `tempera-widgets` re-exports this crate as `tempera::theme`, so a consumer
+//! that wants both can keep writing one path.
+//!
+//! # A function, not a table
+//!
+//! [`ThemeConfig`] is three inputs — a [`Base`], a [`Density`], a
+//! [`TextScale`] — and [`ThemeConfig::build`] derives the rest:
+//!
+//! ```ignore
+//! ThemeConfig { base, density, text } -> Result<Tokens, Incoherent>
+//! ```
+//!
+//! [`Spacing`] is generated from the base by a two-strand modular scale (see
+//! [`Scale`]); [`Sizing`] is *declared*, because control heights answer to hit
+//! targets rather than to perceptual spacing; [`Typography`] is *curated*,
+//! because type must survive hinting and x-height, which no ratio models.
+//! Each group says which it is in its own docs, so a reader is not left
+//! hunting for a rule that was never there.
+//!
+//! # Buckets, so a system reads only what it uses
+//!
+//! Each token group is its own [`Resource`]. A typography system doesn't need
+//! to fight the colour palette for scheduling slots, and a widget that reads
+//! several at once bundles them into a `SystemParam` — see [`Metrics`], which
+//! is the geometry half of that pattern.
 //!
 //! ```ignore
 //! // a widget system reads only what it needs:
 //! fn paint_buttons(palette: Res<ColorPalette>, spacing: Res<Spacing>, ...) {}
 //! ```
-//!
-//! For ergonomics, widgets that read several buckets at once should
-//! expose a [`SystemParam`] (see e.g. [`MenuStyle`] below) so call sites
-//! stay tidy.
 //!
 //! ## Defaults
 //!
@@ -26,7 +52,6 @@
 //! ```
 
 use bevy::ecs::query::QueryFilter;
-use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 
 mod base;
@@ -55,8 +80,7 @@ impl Plugin for ThemePlugin {
             .init_resource::<ColorPalette>()
             .init_resource::<Spacing>()
             .init_resource::<Typography>()
-            .init_resource::<FontHandle>()
-            .init_resource::<MenuTokens>();
+            .init_resource::<FontHandle>();
     }
 }
 
@@ -427,83 +451,6 @@ impl Typography {
 impl Default for Typography {
     fn default() -> Self {
         Self::from_scale(TextScale::default())
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Menu-specific sizing tokens — separate resource because they're tuned
-// for dense list rows, not the generic input/button surface.
-// ---------------------------------------------------------------------------
-
-#[derive(Resource, Clone, Debug)]
-pub struct MenuTokens {
-    pub width: f32,
-    pub item_height: f32,
-    pub item_padding_x: f32,
-    pub corner_radius: f32,
-    pub border_width: f32,
-
-    /// Hover/keyboard-focus row background.
-    pub item_hover_bg: Color,
-    /// Pressed row background.
-    pub item_active_bg: Color,
-    /// 1px line between item groups.
-    pub separator: Color,
-    /// Drop shadow color (alpha-encoded).
-    pub shadow: Color,
-}
-
-impl Default for MenuTokens {
-    fn default() -> Self {
-        // Geometry is left as-is for now: `item_height` 26 and
-        // `item_padding_x` 10 are off the scale (26 is not a multiple of any
-        // scale member) and snapping them to it — 26 → 28, 10 → 8 — moves
-        // pixels on screen. That is a deliberately separate, visible change;
-        // this module is additive by design. `corner_radius` 6 *is* already
-        // the ×3/2 strand at step 1, and `border_width` is a hairline, which
-        // answers to the display rather than to the grid.
-        Self {
-            width: 220.0,
-            item_height: 26.0,
-            item_padding_x: 10.0,
-            corner_radius: 6.0,
-            border_width: 1.0,
-            item_hover_bg: Color::srgba(1.0, 1.0, 1.0, 0.06),
-            item_active_bg: Color::srgba(1.0, 1.0, 1.0, 0.10),
-            separator: Color::srgba(1.0, 1.0, 1.0, 0.08),
-            shadow: Color::srgba(0.0, 0.0, 0.0, 0.45),
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// SystemParam bundles — curated read-only slices for widget systems.
-//
-// Each widget module declares a `*Style` bundle that names exactly the
-// tokens it reads. Adding a new dependency means changing the bundle,
-// which surfaces the coupling at compile time.
-// ---------------------------------------------------------------------------
-
-/// Tokens read by the context-menu paint systems.
-#[derive(SystemParam)]
-pub struct MenuStyle<'w> {
-    pub palette: Res<'w, ColorPalette>,
-    pub typography: Res<'w, Typography>,
-    pub font: Res<'w, FontHandle>,
-    pub menu: Res<'w, MenuTokens>,
-}
-
-impl<'w> MenuStyle<'w> {
-    /// Body-row text font (typography.sm).
-    #[must_use]
-    pub fn body_font(&self) -> TextFont {
-        self.font.text_font(self.typography.sm)
-    }
-
-    /// Smaller shortcut-text font (typography.xs).
-    #[must_use]
-    pub fn shortcut_font(&self) -> TextFont {
-        self.font.text_font(self.typography.xs)
     }
 }
 

@@ -8,7 +8,7 @@
 
 use bevy::picking::events::{Drag, Out, Over, Pointer};
 use bevy::prelude::*;
-use tempera::theme::ColorPalette;
+use tempera_theme::ColorPalette;
 
 use crate::node::{Axis, Divider, PaneMinSize, PaneSize, Split};
 
