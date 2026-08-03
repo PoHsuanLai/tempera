@@ -45,7 +45,7 @@ mod systems;
 
 pub use components::{
     Toast, ToastCreated, ToastDismissible, ToastDuration, ToastExternalProgress, ToastMessage,
-    ToastNodes, ToastPosition, ToastShowProgress, ToastSlide, ToastTitle, ToastVariant,
+    ToastNodes, ToastPosition, ToastShowProgress, ToastTitle, ToastVariant,
 };
 pub use spawn::{ToastSpec, spawn, spawn_error};
 

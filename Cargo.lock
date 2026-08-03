@@ -5222,6 +5222,7 @@ name = "tempera-widgets"
 version = "0.2.0"
 dependencies = [
  "bevy",
+ "bevy_math",
  "bevy_ui_text_input",
  "leafwing-input-manager",
  "tempera-theme",

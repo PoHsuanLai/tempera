@@ -1,9 +1,16 @@
+use bevy::ecs::query::QueryData;
 use bevy::prelude::*;
 use bevy::ui::{Checked, InteractionDisabled};
 
 use super::components::{Switch, SwitchSize, SwitchThumb};
 use crate::anim::Spring;
 use crate::theme::{ColorPalette, HOVER};
+
+/// Thumb-slide feel: firm, no visible overshoot. Lives beside the system
+/// that steps the spring rather than on the component, because it
+/// describes the motion this widget asks for, not the value being moved.
+const SPRING_K: f32 = 800.0;
+const SPRING_DAMPING: f32 = 30.0;
 
 /// Set the spring target whenever `Checked` flips. The actual thumb
 /// position is interpolated each frame by [`drive_switch`].
@@ -13,11 +20,11 @@ use crate::theme::{ColorPalette, HOVER};
 /// detection fires `Changed<T>` on insert/mutate but not on removal.
 /// Running the target update on every switch each frame is cheap (a
 /// scalar comparison) and avoids that edge case entirely.
-pub(crate) fn retarget_switch(mut switches: Query<(Has<Checked>, &mut Spring), With<Switch>>) {
+pub(crate) fn retarget_switch(mut switches: Query<(Has<Checked>, &mut Spring<f32>), With<Switch>>) {
     for (checked, mut spring) in &mut switches {
         let target = if checked { 1.0 } else { 0.0 };
         if (spring.target - target).abs() > f32::EPSILON {
-            spring.set_target(target);
+            spring.target = target;
         }
     }
 }
@@ -78,23 +85,32 @@ pub(crate) fn repaint_switch_track(
     }
 }
 
+/// What [`drive_switch`] reads off each switch.
+#[derive(QueryData)]
+#[query_data(mutable)]
+pub(crate) struct SwitchDriveQuery {
+    spring: &'static mut Spring<f32>,
+    size: Option<&'static SwitchSize>,
+    children: &'static Children,
+}
+
 /// Drive the spring forward each frame and write the thumb position.
 /// Runs every frame on any switch whose spring hasn't settled.
 pub(crate) fn drive_switch(
     time: Res<Time>,
-    mut switches: Query<(&mut Spring, Option<&SwitchSize>, &Children), With<Switch>>,
+    mut switches: Query<SwitchDriveQuery, With<Switch>>,
     mut thumbs: Query<&mut Node, With<SwitchThumb>>,
 ) {
     let dt = time.delta_secs();
-    for (mut spring, size, kids) in &mut switches {
-        if spring.settled() {
+    for mut sw in &mut switches {
+        if sw.spring.settled() {
             continue;
         }
-        spring.update(dt);
-        let size = size.copied().unwrap_or_default();
-        let t = spring.value.clamp(0.0, 1.0);
+        sw.spring.step(dt, SPRING_K, SPRING_DAMPING);
+        let size = sw.size.copied().unwrap_or_default();
+        let t = sw.spring.value.clamp(0.0, 1.0);
         let thumb_left = SwitchSize::INSET + t * size.thumb_travel();
-        for child in kids.iter() {
+        for child in sw.children.iter() {
             if let Ok(mut node) = thumbs.get_mut(child) {
                 node.left = Val::Px(thumb_left);
             }

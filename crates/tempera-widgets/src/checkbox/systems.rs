@@ -5,17 +5,23 @@ use super::components::{CheckGlyph, TemperaCheckbox};
 use crate::anim::Spring;
 use crate::theme::{ColorPalette, HOVER};
 
+/// Glyph-reveal feel: firmer than the switch, so the checkmark pops in
+/// crisply rather than easing. Lives beside the system that steps the
+/// spring — see the note in `switch::systems`.
+const SPRING_K: f32 = 2000.0;
+const SPRING_DAMPING: f32 = 55.0;
+
 /// Re-target the spring on `Checked` flips. Runs unfiltered every
 /// frame: `Checked` is a marker that's *removed* on toggle-off, and
 /// Bevy's `Changed<T>` doesn't fire on removal — so a filtered query
 /// would miss the ON→OFF transition.
 pub(crate) fn retarget_checkbox(
-    mut boxes: Query<(Has<Checked>, &mut Spring), With<TemperaCheckbox>>,
+    mut boxes: Query<(Has<Checked>, &mut Spring<f32>), With<TemperaCheckbox>>,
 ) {
     for (checked, mut spring) in &mut boxes {
         let target = if checked { 1.0 } else { 0.0 };
         if (spring.target - target).abs() > f32::EPSILON {
-            spring.set_target(target);
+            spring.target = target;
         }
     }
 }
@@ -71,7 +77,7 @@ pub(crate) fn repaint_checkbox(
 pub(crate) fn drive_checkbox(
     time: Res<Time>,
     palette: Res<ColorPalette>,
-    mut boxes: Query<(&mut Spring, &Children), With<TemperaCheckbox>>,
+    mut boxes: Query<(&mut Spring<f32>, &Children), With<TemperaCheckbox>>,
     mut glyphs: Query<(&mut Transform, &mut TextColor), With<CheckGlyph>>,
 ) {
     let dt = time.delta_secs();
@@ -79,7 +85,7 @@ pub(crate) fn drive_checkbox(
         if spring.settled() {
             continue;
         }
-        spring.update(dt);
+        spring.step(dt, SPRING_K, SPRING_DAMPING);
         let t = spring.value.clamp(0.0, 1.0);
         let scale = t;
         let alpha = (t * 1.5).clamp(0.0, 1.0);

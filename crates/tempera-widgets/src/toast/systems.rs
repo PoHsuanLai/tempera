@@ -20,7 +20,7 @@ use bevy::window::PrimaryWindow;
 use super::ToastConfig;
 use super::components::{
     Toast, ToastCreated, ToastDuration, ToastExternalProgress, ToastMessage, ToastNodes,
-    ToastPosition, ToastShowProgress, ToastSlide, ToastTitle, ToastVariant,
+    ToastPosition, ToastShowProgress, ToastTitle, ToastVariant,
 };
 use crate::anim::Spring;
 use crate::theme::{ColorPalette, FontHandle, Step, Tokens, Typography};
@@ -59,6 +59,12 @@ impl ToastMetrics {
 /// been laid out. Snapping it to the grid would make the stack spacing wrong
 /// rather than making it principled.
 const TOAST_HEIGHT: f32 = 70.0;
+
+/// Slide-in feel: softer than the switch, so the toast glides rather
+/// than snaps. Lives beside the system that steps the spring — the
+/// parameters describe the motion, not the value being moved.
+const SLIDE_K: f32 = 250.0;
+const SLIDE_DAMPING: f32 = 25.0;
 
 /// Slide offset in logical pixels at slide=0.0 (toast fully off-edge).
 ///
@@ -124,7 +130,7 @@ pub(crate) fn tick_toasts(
             &ToastNodes,
             &ToastDuration,
             Option<&mut ToastCreated>,
-            &mut ToastSlide,
+            &mut Spring<f32>,
             &ToastMessage,
             Option<&ToastExternalProgress>,
         ),
@@ -189,12 +195,9 @@ pub(crate) fn tick_toasts(
             }
         }
 
-        // Advance slide spring toward 1.0.
-        let mut spring = Spring::new(slide.value, 1.0).params(250.0, 25.0);
-        spring.velocity = slide.velocity;
-        spring.update(dt);
-        slide.value = spring.value;
-        slide.velocity = spring.velocity;
+        // Advance the slide spring toward 1.0 (fully on screen).
+        slide.target = 1.0;
+        slide.step(dt, SLIDE_K, SLIDE_DAMPING);
 
         // Stack index (oldest = bottom of stack, near the corner = newest).
         let stack_index = entries

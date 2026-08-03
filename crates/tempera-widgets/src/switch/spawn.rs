@@ -42,9 +42,11 @@ pub fn spawn_switch_sized(
         Switch,
         Checkbox,
         size,
-        // Spring drives the thumb position. Snap to initial state so
-        // the switch doesn't animate in from 0 on spawn.
-        Spring::new(initial_t, initial_t).params(800.0, 30.0),
+        // Spring drives the thumb position. Seeded at the initial state
+        // so the switch doesn't animate in from 0 on spawn. Its feel
+        // (`SPRING_K` / `SPRING_DAMPING`) is applied by `drive_switch`,
+        // which is the only thing that steps it.
+        Spring::new(initial_t),
         Node {
             width: Val::Px(size.track_width()),
             height: Val::Px(size.track_height()),

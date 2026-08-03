@@ -57,12 +57,11 @@ pub struct ToastShowProgress;
 #[derive(Component, Default, Debug)]
 pub struct ToastDismissible;
 
-/// Spring state for the slide-in animation.
-#[derive(Component, Default, Clone, Copy, Debug)]
-pub struct ToastSlide {
-    pub value: f32,
-    pub velocity: f32,
-}
+// The slide-in animation state is a plain `crate::anim::Spring<f32>` on
+// the toast entity. It used to be a `ToastSlide` newtype with the same
+// two fields, which meant copying state into a temporary spring and back
+// out every frame. `Spring` is itself a `Component`, so the newtype was
+// buying nothing.
 
 /// UI subtree handles, written by the reconcile system once it spawns
 /// the toast's node tree. Subsequent frames look these up to update
