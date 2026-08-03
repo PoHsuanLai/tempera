@@ -113,17 +113,48 @@ pub struct SurfaceVisuals {
     pub text: Color,
 }
 
-/// How far a hover moves a fill away from the surface behind it.
-const HOVER: f32 = 0.08;
+/// How far a hover moves a colour away from the surface behind it.
+///
+/// Public because widgets outside the grid step their own colours and must
+/// agree on how far a hover is. The checkbox used 0.12, the switch 0.06 and
+/// the slider 0.08 — three undocumented numbers for one idea, and no way for
+/// a reader to tell whether the differences meant anything. They did not.
+///
+/// It applies to any *visible resting colour* being moved. It does **not**
+/// apply to a control that appears from nothing on hover — a dock divider
+/// rests at [`Color::NONE`], so it has no rest state to be different from and
+/// answers to legibility against the panels instead.
+pub const HOVER: f32 = 0.08;
 
 /// How far a press moves it — further in the same direction, never back
 /// toward the surface. See `button::spawn::pressed` for why reversing is
 /// wrong.
-const PRESS: f32 = 0.14;
+pub const PRESS: f32 = 0.14;
 
 /// A selected-but-unhovered fill sits below hover, so hover can still lift
 /// away from it.
-const SELECT: f32 = 0.04;
+///
+/// Deliberately *not* [`HOVER`], and not a candidate for converging with it:
+/// the gap between the two is what lets a selected control still respond to
+/// the pointer. Making them equal is the defect
+/// `a_selected_button_still_responds_to_the_pointer` exists to catch.
+pub const SELECT: f32 = 0.04;
+
+/// The three amounts must stay ordered: selection below hover below press.
+///
+/// A `const` block rather than a `#[test]`, because comparing two constants
+/// is a compile-time fact and clippy is right to call a runtime assertion on
+/// one pointless. Written as a guard anyway, because the *ordering* is the
+/// load-bearing part and it is not obvious from three separate declarations.
+///
+/// Selection sits below hover so that hovering a selected control still
+/// changes it — a selected control that stops responding to the pointer reads
+/// as a disabled one. Press sits beyond hover because a press is only ever
+/// seen as a change *from* the hovered colour.
+const _ORDERED: () = {
+    assert!(SELECT < HOVER);
+    assert!(HOVER < PRESS);
+};
 
 /// The edge width for [`Surface::Outline`].
 ///
