@@ -23,12 +23,21 @@
 use bevy::prelude::*;
 
 pub mod anim;
-pub mod theme;
+
+/// Design tokens — re-exported from the [`tempera_theme`] crate.
+///
+/// The tokens live in their own crate because they do not depend on any
+/// widget: a dock or a tree that only needs a `ColorPalette` can depend on
+/// `tempera-theme` alone rather than compiling this library to get one.
+/// This alias keeps every existing `tempera::theme::*` path working.
+pub use tempera_theme as theme;
+
+pub mod menu_tokens;
 
 pub mod button;
 pub mod checkbox;
-pub mod command;
 mod checkbox_behavior;
+pub mod command;
 pub mod context_menu;
 pub mod cursor;
 pub mod dialog;
@@ -50,7 +59,7 @@ pub mod tooltip;
 pub mod tree_row;
 
 pub use theme::{
-    Base, ColorPalette, ControlHeight, Density, FontHandle, Gap, Incoherent, MenuStyle, MenuTokens,
+    Base, ColorPalette, ControlHeight, ControlSize, Density, FontHandle, Gap, Incoherent, Metrics,
     Radius, Scale, Sizing, Spacing, Step, TextScale, TextSize, ThemeConfig, ThemePlugin, Tokens,
     Typography,
 };
@@ -58,89 +67,82 @@ pub use theme::{
 pub mod prelude {
     pub use crate::TemperaPlugin;
     pub use crate::button::{
-        spawn_button, spawn_button_sized, Activate, Button, ButtonContent, ButtonSize,
-        ButtonStyle, ButtonStylePlugin, ButtonVariant, IconTint, TemperaButton,
-    };
-    pub use crate::command::{
-        spawn_command, spawn_command_with_icon, Command, CommandActivated, CommandEmpty,
-        CommandGroup, CommandGroupHeading, CommandInputRow, CommandItem, CommandItemSpec,
-        CommandList, CommandPlugin, CommandSection, CommandSelection, CommandStyle,
+        Activate, Button, ButtonContent, ButtonSize, ButtonStyle, ButtonStylePlugin, ButtonVariant,
+        IconTint, TemperaButton, spawn_button, spawn_button_sized,
     };
     pub use crate::checkbox::{
-        spawn_checkbox, CheckGlyph, Checkbox, CheckboxStyle, CheckboxStylePlugin, Checked,
-        TemperaCheckbox,
+        CheckGlyph, Checkbox, CheckboxStyle, CheckboxStylePlugin, Checked, TemperaCheckbox,
+        spawn_checkbox,
     };
-    pub use crate::context_menu::{
-        ContextMenuPlugin, MenuItemSpec, MenuRequest, OpenContextMenu,
+    pub use crate::command::{
+        Command, CommandActivated, CommandEmpty, CommandGroup, CommandGroupHeading,
+        CommandInputRow, CommandItem, CommandItemSpec, CommandList, CommandPlugin, CommandSection,
+        CommandSelection, CommandStyle, spawn_command, spawn_command_with_icon,
     };
+    pub use crate::context_menu::{ContextMenuPlugin, MenuItemSpec, MenuRequest, OpenContextMenu};
     pub use crate::cursor::{CursorPlugin, HoverCursor};
-    pub use crate::slider::{
-        spawn_slider, Slider, SliderRange, SliderSize, SliderStep, SliderStyle,
-        SliderStylePlugin, SliderThumb, SliderValue, ValueChange,
-    };
-    pub use crate::switch::{
-        spawn_switch, Switch, SwitchSize, SwitchStyle, SwitchStylePlugin, SwitchThumb,
-    };
-    pub use crate::toggle_group::{
-        spawn_toggle_group, RadioButton, RadioGroup, ToggleGroup, ToggleGroupItem,
-        ToggleGroupKind, ToggleGroupStyle, ToggleGroupStylePlugin, ToggleItem,
-    };
     pub use crate::dialog::{
-        spawn_dialog, Dialog, DialogBackdrop, DialogCard, DialogClose, DialogConfig,
-        DialogContent, DialogDismissed, DialogParts, DialogPlugin, DialogStyle,
-    };
-    pub use crate::tree_row::{
-        spawn_tree_row, ChevronState, TreeRow, TreeRowChevron, TreeRowExpanded, TreeRowHeader,
-        TreeRowLabel, TreeRowPlugin, TreeRowSpec, TreeRowStyle, TreeRowSuffix, TreeRowTokens,
+        Dialog, DialogBackdrop, DialogCard, DialogClose, DialogConfig, DialogContent,
+        DialogDismissed, DialogParts, DialogPlugin, DialogStyle, spawn_dialog,
     };
     pub use crate::dropdown_menu::{
-        spawn_dropdown, DropdownMenuPlugin, DropdownStyle, DropdownTrigger,
+        DropdownMenuPlugin, DropdownStyle, DropdownTrigger, spawn_dropdown,
     };
-    pub use crate::kbd::{spawn_kbd, KbdPlugin, KbdStyle};
+    pub use crate::kbd::{KbdPlugin, KbdStyle, spawn_kbd};
     pub use crate::list_row::{
-        spawn_list_row, ListRow, ListRowBadge, ListRowId, ListRowLead, ListRowMeta, ListRowParts,
-        ListRowPlugin, ListRowSpec, ListRowStyle, ListRowSubtitle, ListRowTitle, ListRowTokens,
-        ListRowTrail,
-    };
-    pub use crate::tabs::{
-        spawn_tabs, TabIndicator, TabTrigger, Tabs, TabsActive, TabsChanged, TabsPlugin,
-        TabsStyle,
-    };
-    pub use crate::progress::{
-        spawn_progress, Progress, ProgressFill, ProgressPlugin, ProgressStyle, ProgressValue,
+        ListRow, ListRowBadge, ListRowId, ListRowLead, ListRowMeta, ListRowParts, ListRowPlugin,
+        ListRowSpec, ListRowStyle, ListRowSubtitle, ListRowTitle, ListRowTokens, ListRowTrail,
+        spawn_list_row,
     };
     pub use crate::number_field::{
-        spawn_number_field, NumberField, NumberFieldKind, NumberFieldPlugin, NumberFieldRange,
-        NumberFieldStep, NumberFieldStyle, NumberFieldValue,
+        NumberField, NumberFieldKind, NumberFieldPlugin, NumberFieldRange, NumberFieldStep,
+        NumberFieldStyle, NumberFieldValue, spawn_number_field,
+    };
+    pub use crate::progress::{
+        Progress, ProgressFill, ProgressPlugin, ProgressStyle, ProgressValue, spawn_progress,
+    };
+    pub use crate::slider::{
+        Slider, SliderRange, SliderSize, SliderStep, SliderStyle, SliderStylePlugin, SliderThumb,
+        SliderValue, ValueChange, spawn_slider,
+    };
+    pub use crate::switch::{
+        Switch, SwitchSize, SwitchStyle, SwitchStylePlugin, SwitchThumb, spawn_switch,
+    };
+    pub use crate::tabs::{
+        TabIndicator, TabTrigger, Tabs, TabsActive, TabsChanged, TabsPlugin, TabsStyle, spawn_tabs,
+    };
+    pub use crate::toggle_group::{
+        RadioButton, RadioGroup, ToggleGroup, ToggleGroupItem, ToggleGroupKind, ToggleGroupStyle,
+        ToggleGroupStylePlugin, ToggleItem, spawn_toggle_group,
+    };
+    pub use crate::tree_row::{
+        ChevronState, TreeRow, TreeRowChevron, TreeRowExpanded, TreeRowHeader, TreeRowLabel,
+        TreeRowPlugin, TreeRowSpec, TreeRowStyle, TreeRowSuffix, TreeRowTokens, spawn_tree_row,
     };
     // NB: `select::ValueChange` is intentionally not re-exported here — it would
     // clash with `slider::ValueChange`. Import it via `tempera::select::ValueChange`.
+    pub use crate::menu_tokens::{MenuStyle, MenuTokens};
     pub use crate::select::{
-        spawn_select, Select, SelectOption, SelectOptions, SelectPlugin, SelectStyle, SelectValue,
+        Select, SelectOption, SelectOptions, SelectPlugin, SelectStyle, SelectValue, spawn_select,
     };
-    pub use crate::separator::{
-        spawn_separator, SeparatorAxis, SeparatorPlugin, SeparatorStyle,
-    };
+    pub use crate::separator::{SeparatorAxis, SeparatorPlugin, SeparatorStyle, spawn_separator};
     pub use crate::setting_row::{
-        spawn_section_header, spawn_setting_row, SettingRow, SettingRowControl,
-        SettingRowDescription, SettingRowLabel, SettingRowPlugin, SettingRowSpec, SettingRowStyle,
-        SettingRowTokens, SettingSection,
+        SettingRow, SettingRowControl, SettingRowDescription, SettingRowLabel, SettingRowPlugin,
+        SettingRowSpec, SettingRowStyle, SettingRowTokens, SettingSection, spawn_section_header,
+        spawn_setting_row,
     };
+    pub use crate::text_input::{
+        SubmitText, TextInput, TextInputBuffer, TextInputContents, TextInputFilter,
+        TextInputHandle, TextInputMode, TextInputNode, TextInputPrompt, TextInputStyle,
+        TextInputStylePlugin, spawn_text_input,
+    };
+    pub use crate::theme::{ColorPalette, FontHandle, Spacing, ThemePlugin, Typography};
     pub use crate::toast::{
-        spawn_error as spawn_toast_error, spawn as spawn_toast, Toast, ToastConfig,
-        ToastDismissible, ToastDuration, ToastExternalProgress, ToastMessage, ToastNodes,
-        ToastPlugin, ToastPosition, ToastShowProgress, ToastSlide, ToastSpec, ToastTitle,
-        ToastVariant,
+        Toast, ToastConfig, ToastDismissible, ToastDuration, ToastExternalProgress, ToastMessage,
+        ToastNodes, ToastPlugin, ToastPosition, ToastShowProgress, ToastSlide, ToastSpec,
+        ToastTitle, ToastVariant, spawn as spawn_toast, spawn_error as spawn_toast_error,
     };
     pub use crate::tooltip::{Tooltip, TooltipArrow, TooltipPlugin, TooltipPopup, TooltipPosition};
-    pub use crate::text_input::{
-        spawn_text_input, SubmitText, TextInput, TextInputBuffer, TextInputContents,
-        TextInputFilter, TextInputHandle, TextInputMode, TextInputNode, TextInputPrompt,
-        TextInputStyle, TextInputStylePlugin,
-    };
-    pub use crate::theme::{
-        ColorPalette, FontHandle, MenuStyle, MenuTokens, Spacing, ThemePlugin, Typography,
-    };
 }
 
 /// Aggregate plugin — registers theme + every widget.
@@ -159,10 +161,9 @@ impl Plugin for TemperaPlugin {
         add_once::<slider::SliderStylePlugin>(app, || slider::SliderStylePlugin);
         add_once::<checkbox::CheckboxStylePlugin>(app, || checkbox::CheckboxStylePlugin);
         add_once::<switch::SwitchStylePlugin>(app, || switch::SwitchStylePlugin);
-        add_once::<toggle_group::ToggleGroupStylePlugin>(
-            app,
-            || toggle_group::ToggleGroupStylePlugin,
-        );
+        add_once::<toggle_group::ToggleGroupStylePlugin>(app, || {
+            toggle_group::ToggleGroupStylePlugin
+        });
         add_once::<separator::SeparatorPlugin>(app, || separator::SeparatorPlugin);
         add_once::<progress::ProgressPlugin>(app, || progress::ProgressPlugin);
         add_once::<kbd::KbdPlugin>(app, || kbd::KbdPlugin);

@@ -16,6 +16,9 @@ description = "Theme-aware UI widgets for bevy_ui — retained-mode, ECS-native"
 name = "tempera"
 
 [dependencies]
+# The design tokens. Re-exported as `tempera::theme`, so a consumer that wants
+# widgets and tokens together keeps writing one path.
+tempera-theme.workspace = true
 # Fork with `InputDispatchPlugin` registration guard so tempera's
 # other widget plugins (button/slider/etc.) can also install it
 # without panicking. Drop the fork when upstream merges the fix.

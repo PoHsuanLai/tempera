@@ -51,7 +51,7 @@ impl Plugin for SelectPlugin {
                 systems::on_menu_item_activated,
                 systems::paint_select_hover.run_if(
                     crate::theme::repaint_needed::<Select>
-                        .or_else(resource_changed::<crate::theme::MenuTokens>),
+                        .or_else(resource_changed::<crate::menu_tokens::MenuTokens>),
                 ),
             ),
         );

@@ -20,7 +20,11 @@ tracing.workspace = true
 # Design tokens only. The dock paints one thing — the divider's hover tint —
 # and takes the color from tempera's palette rather than asking the host for a
 # theme trait to implement.
-tempera.workspace = true
+#
+# This said "tokens only" while depending on the whole widget library, because
+# the tokens were not separately depend-able. They are now: one import, one
+# `ColorPalette`, and no widget compiled to reach it.
+tempera-theme.workspace = true
 
 [dev-dependencies]
 bevy = { workspace = true, features = ["bevy_ui", "bevy_picking", "bevy_log"] }

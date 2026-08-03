@@ -1,23 +1,32 @@
-# tempera — bevy_ui widgets, and the application shell built out of them.
+# tempera — design tokens, bevy_ui widgets, and the application shell built
+# out of them.
 #
-# Two layers, one workspace:
+# Three layers, one workspace:
 #
-#   crates/tempera      the widget library: buttons, dialogs, menus, rows.
-#                       Knows how to draw itself and nothing about who asked.
-#   crates/shellie-*    the shell those widgets assemble into: keybinds and
-#                       commands, docking, trees, a settings dialog.
+#   crates/tempera-theme    the design tokens: a generated spacing scale, a
+#                           palette, a type ramp. Knows nothing about widgets —
+#                           the only thing it borrows from the UI layer is
+#                           `Val`, so a token can be assigned into a `Node`.
+#   crates/tempera-widgets  the widget library: buttons, dialogs, menus, rows.
+#                           Knows how to draw itself and nothing about who
+#                           asked. Re-exports the tokens as `tempera::theme`.
+#   crates/tempera-*        the shell those widgets assemble into: keybinds and
+#                           commands, docking, trees, a settings dialog.
 #
-# The split is what each layer is allowed to know. A shellie crate knows what
-# an application *shape* is — that panes divide, that commands have conditions
-# — and still nothing about any particular application.
+# The split is what each layer is allowed to know. A shell crate knows what an
+# application *shape* is — that panes divide, that commands have conditions —
+# and still nothing about any particular application. It also gets to pick its
+# layer: the dock needs a colour, so it depends on the tokens; settings
+# composes real widgets, so it depends on those.
 #
-# Neither layer may name a specific app. shellie moved here from the dawai
-# repo, where that was enforced by a workspace `exclude`: a shellie crate could
+# Neither layer may name a specific app. The shell moved here from the dawai
+# repo, where that was enforced by a workspace `exclude`: a shell crate could
 # not depend on `dawai-*` because those packages were not members. A separate
 # repository is the stronger form of the same rule.
 [workspace]
 resolver = "2"
 members = [
+    "crates/tempera-theme",
     "crates/tempera-widgets",
     "crates/tempera-dock",
     "crates/tempera-input",
@@ -60,6 +69,14 @@ ron = "0.12"
 # Named `tempera` here to match the library name the widget crate declares
 # (`[lib] name = "tempera"`), so every use site stays `tempera::button`.
 tempera = { package = "tempera-widgets", path = "crates/tempera-widgets" }
+
+# The design tokens, separately depend-able.
+#
+# A crate that only needs to know what colour the surface is should not compile
+# a text-input widget to find out. `tempera-dock` is the case in point: it
+# reads a `ColorPalette` and nothing else, and depended on the whole widget
+# library to do it.
+tempera-theme = { path = "crates/tempera-theme" }
 
 # Bevy is unusable in pure debug. Optimize third-party deps even in dev so an
 # example stays runnable; workspace crates stay unoptimized for fast

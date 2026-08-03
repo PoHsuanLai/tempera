@@ -99,7 +99,7 @@ pub(crate) fn on_menu_item_activated(
 /// widget even once the gating was fixed. The select's trigger is a menu
 /// surface, so it takes the menu's colours.
 pub(crate) fn paint_select_hover(
-    menu: Res<crate::theme::MenuTokens>,
+    menu: Res<crate::menu_tokens::MenuTokens>,
     mut selects: Query<(&Interaction, &mut BackgroundColor), With<Select>>,
 ) {
     let resting = menu.item_hover_bg;

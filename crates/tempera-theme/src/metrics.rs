@@ -152,11 +152,11 @@ impl Metrics<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::theme::{Base, Scale, ThemeConfig};
+    use crate::{Base, Scale, ThemeConfig};
 
     fn metrics_world() -> App {
         let mut app = App::new();
-        app.add_plugins(crate::theme::ThemePlugin);
+        app.add_plugins(crate::ThemePlugin);
         app
     }
 
@@ -228,8 +228,7 @@ mod tests {
         }
         .build()
         .expect("base 8 comfortable is coherent");
-        app.insert_resource(tokens)
-            .add_plugins(crate::theme::ThemePlugin);
+        app.insert_resource(tokens).add_plugins(crate::ThemePlugin);
 
         let (gap, height) = read(&mut app, |m| {
             (m.gap(Step::new(2)).get(), m.control(ControlSize::Md).get())

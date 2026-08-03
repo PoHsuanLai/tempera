@@ -1,0 +1,33 @@
+[package]
+name = "tempera-theme"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Design tokens for bevy_ui — a generated spacing scale, a palette, and a type ramp"
+
+# The theme does not know what a button is.
+#
+# That is not an aspiration; it is checked. Nothing in this crate names a
+# widget type, and the one thing it borrows from the UI layer is `Val`, for
+# the `From` impls that let a token be assigned straight into a `Node` field.
+# So the feature list below is `bevy_ui` and colour and text — no picking, no
+# windowing, no renderer, no `bevy_ui_widgets`.
+#
+# The split earns its keep on the consumer side: `tempera-dock` reads a
+# `ColorPalette` and nothing else, and used to compile twenty widgets and a
+# text-input fork to get it.
+[dependencies]
+bevy = { version = "0.19", default-features = false, features = [
+    "bevy_ui",
+    "bevy_text",
+    "bevy_color",
+    "bevy_asset",
+] }
+
+[dev-dependencies]
+bevy = { version = "0.19", features = ["default_font"] }
+
+[lints]
+workspace = true
