@@ -35,6 +35,7 @@ pub use tempera_theme as theme;
 pub mod menu_tokens;
 
 pub mod button;
+pub mod card;
 pub mod checkbox;
 mod checkbox_behavior;
 pub mod command;
@@ -69,6 +70,10 @@ pub mod prelude {
     pub use crate::button::{
         Activate, Button, ButtonContent, ButtonSize, ButtonStyle, ButtonStylePlugin, ButtonVariant,
         IconTint, Selected, TemperaButton, spawn_button, spawn_button_sized,
+    };
+    pub use crate::card::{
+        Card, CardBody, CardChevron, CardExpanded, CardHeader, CardParts, CardPlugin, CardState,
+        CardStyle, CardTokens, spawn_card,
     };
     pub use crate::checkbox::{
         CheckGlyph, Checkbox, CheckboxStyle, CheckboxStylePlugin, Checked, TemperaCheckbox,
@@ -159,6 +164,7 @@ impl Plugin for TemperaPlugin {
         add_once::<context_menu::ContextMenuPlugin>(app, || context_menu::ContextMenuPlugin);
         add_once::<button::ButtonStylePlugin>(app, || button::ButtonStylePlugin);
         add_once::<slider::SliderStylePlugin>(app, || slider::SliderStylePlugin);
+        add_once::<card::CardPlugin>(app, || card::CardPlugin);
         add_once::<checkbox::CheckboxStylePlugin>(app, || checkbox::CheckboxStylePlugin);
         add_once::<switch::SwitchStylePlugin>(app, || switch::SwitchStylePlugin);
         add_once::<toggle_group::ToggleGroupStylePlugin>(app, || {
