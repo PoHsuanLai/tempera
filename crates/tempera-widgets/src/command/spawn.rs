@@ -7,12 +7,10 @@ use super::components::{
     CommandItemSpec, CommandList, CommandSection, CommandSelection,
 };
 use crate::text_input::{TextInputStyle, spawn_text_input};
-use crate::theme::{ColorPalette, FontHandle, Spacing, Step, Typography};
+use crate::theme::{ColorPalette, ControlSize, FontHandle, Spacing, Step, Typography};
 
 const PALETTE_WIDTH: f32 = 520.0;
 const PALETTE_MAX_LIST_HEIGHT: f32 = 300.0;
-const INPUT_HEIGHT: f32 = 44.0;
-const ITEM_HEIGHT: f32 = 36.0;
 
 /// Tokens read by the command-palette spawn + paint systems. Embeds
 /// [`TextInputStyle`] so we can hand it through to `spawn_text_input`
@@ -139,7 +137,7 @@ fn spawn_input_row(
         .spawn((
             CommandInputRow,
             Node {
-                height: Val::Px(INPUT_HEIGHT),
+                height: style.text_input.metrics.control(ControlSize::Lg).into(),
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
                 column_gap: Val::Px(style.spacing.xs),
@@ -289,7 +287,7 @@ fn spawn_item(
                 disabled: spec.disabled,
             },
             Node {
-                height: Val::Px(ITEM_HEIGHT),
+                height: style.text_input.metrics.control(ControlSize::Md).into(),
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
                 padding: UiRect::horizontal(Val::Px(8.0)),

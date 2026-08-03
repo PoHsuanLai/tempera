@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use bevy::ui_widgets::Button;
 
 use super::components::{TabIndicator, TabTrigger, Tabs, TabsActive};
-use crate::theme::{ColorPalette, FontHandle, Metrics, Spacing, Step, Typography};
+use crate::theme::{ColorPalette, ControlSize, FontHandle, Metrics, Spacing, Step, Typography};
 
 // Matches the dawai browser default: HEIGHT=26, TRIGGER_PADDING_X=8,
 // INDICATOR_INSET=2. The indicator is a solid `background`-filled
@@ -11,13 +11,6 @@ use crate::theme::{ColorPalette, FontHandle, Metrics, Spacing, Step, Typography}
 // shadcn/ui Tabs and `armas-basic::Tabs`. (armas default is 28 but
 // dawai's panels all override to 26 — picking the smaller as the
 // tempera default eliminates the per-call override.)
-/// Height of the whole tab strip.
-///
-/// **A stray**, kept as a literal for now: 26 is not on the spacing scale and
-/// is not one of the declared control heights either — the nearest,
-/// `control_sm`, is 28. Snapping it moves the strip two pixels, which is a
-/// visible change and belongs in its own reviewable commit.
-const HEIGHT: f32 = 26.0;
 
 /// Gap between the strip's edge and the indicator inside it.
 ///
@@ -54,7 +47,7 @@ pub fn spawn_tabs(
             TabsActive(active),
             Node {
                 flex_direction: FlexDirection::Row,
-                height: Val::Px(HEIGHT),
+                height: style.metrics.control(ControlSize::Sm).into(),
                 padding: UiRect::all(Val::Px(INDICATOR_INSET)),
                 border_radius: BorderRadius::all(Val::Px(style.spacing.corner_radius_small)),
                 position_type: PositionType::Relative,
@@ -83,7 +76,7 @@ pub fn spawn_tabs(
             top: Val::Px(INDICATOR_INSET),
             left: Val::Px(INDICATOR_INSET),
             width: Val::Px(0.0),
-            height: Val::Px(HEIGHT - INDICATOR_INSET * 2.0),
+            height: Val::Px(style.metrics.control(ControlSize::Sm).get() - INDICATOR_INSET * 2.0),
             border_radius: BorderRadius::all(Val::Px(style.spacing.corner_radius_tiny)),
             ..default()
         },
@@ -104,7 +97,9 @@ pub fn spawn_tabs(
                     // remaining inner row.
                     flex_grow: 1.0,
                     flex_basis: Val::Px(0.0),
-                    height: Val::Px(HEIGHT - INDICATOR_INSET * 2.0),
+                    height: Val::Px(
+                        style.metrics.control(ControlSize::Sm).get() - INDICATOR_INSET * 2.0,
+                    ),
                     padding: UiRect::horizontal(Val::Px(style.metrics.gap(Step::new(2)).get())),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
