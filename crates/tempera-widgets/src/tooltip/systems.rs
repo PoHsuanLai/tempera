@@ -52,8 +52,15 @@ pub(crate) fn open_tooltips(
     palette: Res<ColorPalette>,
     typography: Res<Typography>,
     font: Res<FontHandle>,
+    tokens: Res<crate::theme::Tokens>,
     hovered: Query<
-        (Entity, &Tooltip, &TooltipHover, &ComputedNode, &UiGlobalTransform),
+        (
+            Entity,
+            &Tooltip,
+            &TooltipHover,
+            &ComputedNode,
+            &UiGlobalTransform,
+        ),
         Without<TooltipPopup>,
     >,
     popups: Query<&TooltipPopup>,
@@ -89,6 +96,7 @@ pub(crate) fn open_tooltips(
             &palette,
             &typography,
             &font,
+            &super::spawn::TooltipMetrics::from(&tokens),
         );
     }
 }
@@ -159,10 +167,8 @@ pub(crate) fn sync_popup_positions(
             if child_of.0 != popup_entity {
                 continue;
             }
-            let (arrow_x, arrow_y, arrow_rotation) = arrow_offset(
-                placement.resolved,
-                popup_size_logical,
-            );
+            let (arrow_x, arrow_y, arrow_rotation) =
+                arrow_offset(placement.resolved, popup_size_logical);
             arrow_node.left = Val::Px(arrow_x);
             arrow_node.top = Val::Px(arrow_y);
             // We use a single triangle texture; rotate via transform.
@@ -186,7 +192,11 @@ pub(crate) fn place_tooltip(
     window_size: Vec2,
     show_arrow: bool,
 ) -> Placement {
-    let arrow_gap = if show_arrow { super::spawn::ARROW_SIZE + 2.0 } else { 4.0 };
+    let arrow_gap = if show_arrow {
+        super::spawn::ARROW_SIZE + 2.0
+    } else {
+        4.0
+    };
 
     let resolved = match preferred {
         TooltipPosition::Auto => choose_auto(
@@ -221,8 +231,12 @@ pub(crate) fn place_tooltip(
 
     // Clamp into the window so the popup is fully visible.
     let popup_min = Vec2::new(
-        popup_min.x.clamp(4.0, (window_size.x - popup_size.x - 4.0).max(4.0)),
-        popup_min.y.clamp(4.0, (window_size.y - popup_size.y - 4.0).max(4.0)),
+        popup_min
+            .x
+            .clamp(4.0, (window_size.x - popup_size.x - 4.0).max(4.0)),
+        popup_min
+            .y
+            .clamp(4.0, (window_size.y - popup_size.y - 4.0).max(4.0)),
     );
 
     Placement {

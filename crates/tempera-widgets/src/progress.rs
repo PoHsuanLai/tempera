@@ -12,7 +12,7 @@
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 
-use crate::theme::{ColorPalette, ThemePlugin};
+use crate::theme::{ColorPalette, Metrics, Step, ThemePlugin};
 
 #[derive(Component, Default, Debug)]
 pub struct Progress;
@@ -33,9 +33,8 @@ pub struct ProgressFill;
 #[derive(SystemParam)]
 pub struct ProgressStyle<'w> {
     pub palette: Res<'w, ColorPalette>,
+    pub metrics: Metrics<'w>,
 }
-
-const HEIGHT: f32 = 8.0;
 
 /// Spawn a progress bar of `width` logical pixels, initially at `value`.
 pub fn spawn_progress(
@@ -44,14 +43,16 @@ pub fn spawn_progress(
     width: f32,
     value: f32,
 ) -> Entity {
+    // Step 2 on the spacing scale — 8 at the default base.
+    let height = style.metrics.gap(Step::new(2)).get();
     let id = commands
         .spawn((
             Progress,
             ProgressValue(value.clamp(0.0, 1.0)),
             Node {
                 width: Val::Px(width),
-                height: Val::Px(HEIGHT),
-                border_radius: BorderRadius::all(Val::Px(HEIGHT * 0.5)),
+                height: Val::Px(height),
+                border_radius: BorderRadius::all(Val::Px(height * 0.5)),
                 ..default()
             },
             BackgroundColor(style.palette.muted),
@@ -64,7 +65,7 @@ pub fn spawn_progress(
         Node {
             width: Val::Percent(value.clamp(0.0, 1.0) * 100.0),
             height: Val::Percent(100.0),
-            border_radius: BorderRadius::all(Val::Px(HEIGHT * 0.5)),
+            border_radius: BorderRadius::all(Val::Px(height * 0.5)),
             ..default()
         },
         BackgroundColor(style.palette.primary),

@@ -241,4 +241,28 @@ mod tests {
         // instead of the base-4 ones reused.
         assert_eq!(height, 32.0, "a coarser grid must not inflate a control");
     }
+    #[test]
+    fn every_substituted_const_still_returns_its_old_value() {
+        // This PR promised nothing moves on screen. Each of these was a
+        // literal before; each is now a scale lookup. The two must agree at
+        // the default base, or the change was not invisible after all.
+        let t = crate::ThemeConfig::default().build().unwrap();
+        let at = |n: i8| t.scale.at(Step::new(n)).get();
+
+        // toast: padding, corner radius, spacing, margin, progress height
+        assert_eq!(at(4), 16.0);
+        assert_eq!(at(2), 8.0);
+        assert_eq!(at(-2), 2.0);
+        // checkbox: box, corner
+        assert_eq!(at(4), 16.0);
+        assert_eq!(at(0), 4.0);
+        // progress height, tabs trigger padding, command section padding
+        assert_eq!(at(2), 8.0);
+        // toggle_group item padding, tooltip padding-x, dialog card radius
+        assert_eq!(at(3), 12.0);
+        // tooltip corner radius + padding-y
+        assert_eq!(at(1), 6.0);
+        // toggle_group item height
+        assert_eq!(t.sizing.get(ControlSize::Sm).get(), 28.0);
+    }
 }

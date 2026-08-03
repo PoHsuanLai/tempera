@@ -6,14 +6,13 @@ use super::components::{
     Command, CommandEmpty, CommandGroup, CommandGroupHeading, CommandInputRow, CommandItem,
     CommandItemSpec, CommandList, CommandSection, CommandSelection,
 };
-use crate::text_input::{spawn_text_input, TextInputStyle};
-use crate::theme::{ColorPalette, FontHandle, Spacing, Typography};
+use crate::text_input::{TextInputStyle, spawn_text_input};
+use crate::theme::{ColorPalette, FontHandle, Spacing, Step, Typography};
 
 const PALETTE_WIDTH: f32 = 520.0;
 const PALETTE_MAX_LIST_HEIGHT: f32 = 300.0;
 const INPUT_HEIGHT: f32 = 44.0;
 const ITEM_HEIGHT: f32 = 36.0;
-const SECTION_PADDING_X: f32 = 8.0;
 
 /// Tokens read by the command-palette spawn + paint systems. Embeds
 /// [`TextInputStyle`] so we can hand it through to `spawn_text_input`
@@ -122,14 +121,7 @@ pub fn spawn_command_with_icon(
     spawn_empty_placeholder(commands, list, style, &label_font);
 
     for section in sections {
-        spawn_section(
-            commands,
-            list,
-            style,
-            &heading_font,
-            &item_font,
-            section,
-        );
+        spawn_section(commands, list, style, &heading_font, &item_font, section);
     }
 
     root
@@ -245,7 +237,10 @@ fn spawn_section(
             CommandGroup,
             Node {
                 flex_direction: FlexDirection::Column,
-                padding: UiRect::axes(Val::Px(SECTION_PADDING_X), Val::Px(4.0)),
+                padding: UiRect::axes(
+                    style.text_input.metrics.gap(Step::new(2)).into(),
+                    style.text_input.metrics.gap(Step::BASE).into(),
+                ),
                 ..default()
             },
             BackgroundColor(Color::NONE),

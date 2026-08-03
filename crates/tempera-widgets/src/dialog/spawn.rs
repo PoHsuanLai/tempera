@@ -5,11 +5,16 @@ use bevy::prelude::*;
 use super::components::{Dialog, DialogBackdrop, DialogCard, DialogClose, DialogContent};
 use super::messages::DialogDismissed;
 use super::systems::Z_DIALOG;
-use crate::theme::{ColorPalette, FontHandle, Typography};
+use crate::theme::{ColorPalette, FontHandle, Metrics, Step, Typography};
 
 /// Default card width / height — sized for a settings-style modal.
 pub const CARD_WIDTH: f32 = 720.0;
 pub const CARD_HEIGHT: f32 = 480.0;
+/// The card's corner radius.
+///
+/// Step 3 on the spacing scale — 12 at the default base. Kept `pub` because
+/// downstream code positions things against the card's corner; the value now
+/// comes from the scale rather than from this literal.
 pub const CARD_RADIUS: f32 = 12.0;
 pub const CARD_PADDING: f32 = 0.0;
 pub const TITLE_BAR_HEIGHT: f32 = 44.0;
@@ -19,6 +24,7 @@ pub const TITLE_BAR_PADDING_X: f32 = 18.0;
 #[derive(SystemParam)]
 pub struct DialogStyle<'w> {
     pub palette: Res<'w, ColorPalette>,
+    pub metrics: Metrics<'w>,
     pub typography: Res<'w, Typography>,
     pub font: Res<'w, FontHandle>,
 }
@@ -116,7 +122,11 @@ pub struct DialogParts {
 /// The dialog **does not auto-hide** on dismissal; consumers react to
 /// [`DialogDismissed`] and flip `Visibility` themselves. This keeps
 /// dialogs source-of-truth-agnostic (the open flag can live anywhere).
-pub fn spawn_dialog(commands: &mut Commands, style: &DialogStyle, cfg: DialogConfig) -> DialogParts {
+pub fn spawn_dialog(
+    commands: &mut Commands,
+    style: &DialogStyle,
+    cfg: DialogConfig,
+) -> DialogParts {
     let visibility = if cfg.start_visible {
         Visibility::Inherited
     } else {
@@ -180,7 +190,7 @@ pub fn spawn_dialog(commands: &mut Commands, style: &DialogStyle, cfg: DialogCon
                 width: Val::Px(cfg.width),
                 height: Val::Px(cfg.height),
                 flex_direction: FlexDirection::Column,
-                border_radius: BorderRadius::all(Val::Px(CARD_RADIUS)),
+                border_radius: BorderRadius::all(style.metrics.radius(Step::new(3)).into()),
                 border: UiRect::all(Val::Px(1.0)),
                 overflow: Overflow::clip(),
                 ..default()
@@ -246,9 +256,15 @@ pub fn spawn_dialog(commands: &mut Commands, style: &DialogStyle, cfg: DialogCon
                           title_parent_q: Query<&ChildOf>,
                           mut writer: MessageWriter<DialogDismissed>| {
                         // close button -> title bar -> card -> root
-                        let Ok(p1) = parent_q.get(on.entity) else { return };
-                        let Ok(p2) = title_parent_q.get(p1.0) else { return };
-                        let Ok(p3) = title_parent_q.get(p2.0) else { return };
+                        let Ok(p1) = parent_q.get(on.entity) else {
+                            return;
+                        };
+                        let Ok(p2) = title_parent_q.get(p1.0) else {
+                            return;
+                        };
+                        let Ok(p3) = title_parent_q.get(p2.0) else {
+                            return;
+                        };
                         writer.write(DialogDismissed { dialog: p3.0 });
                     },
                 )
