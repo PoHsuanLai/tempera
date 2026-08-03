@@ -258,13 +258,17 @@ pub(crate) fn on_divider_out(
     }
 }
 
-/// An explicit tint wins; otherwise lift the palette's border color enough to
-/// read as a seam. With no palette at all the divider stays invisible, which
-/// is correct over a viewport the shell must not paint over.
+/// An explicit tint wins; otherwise step the palette's border colour away from
+/// the surface it is drawn on, enough to read as a seam. With no palette at
+/// all the divider stays invisible, which is correct over a viewport the shell
+/// must not paint over.
+///
+/// The surface is `background`: a divider separates panels, and what it has to
+/// stand out against is the shell behind them.
 fn hover_tint(style: &DividerStyle, palette: Option<&ColorPalette>) -> Option<Color> {
     style
         .hover
-        .or_else(|| palette.map(|p| ColorPalette::hover_lift(p.border, 0.15)))
+        .or_else(|| palette.map(|p| ColorPalette::step(p.border, p.background, 0.15)))
 }
 
 #[cfg(test)]

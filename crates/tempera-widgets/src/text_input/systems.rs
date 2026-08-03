@@ -52,7 +52,7 @@ fn paint(
     let edge = if focused {
         palette.ring
     } else if hovered {
-        ColorPalette::hover_lift(palette.input, 0.12)
+        ColorPalette::step(palette.input, palette.background, 0.12)
     } else {
         palette.input
     };

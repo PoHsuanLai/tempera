@@ -89,7 +89,7 @@ pub(crate) fn repaint_slider(
                 let color = if disabled {
                     palette.muted_foreground
                 } else if hovered {
-                    ColorPalette::hover_lift(palette.primary, 0.08)
+                    ColorPalette::step(palette.primary, palette.background, 0.08)
                 } else {
                     palette.primary
                 };

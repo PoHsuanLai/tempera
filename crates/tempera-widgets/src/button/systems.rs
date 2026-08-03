@@ -201,6 +201,51 @@ mod tests {
         );
     }
 
+    /// Rest, hover and press must be three distinguishable fills — in both
+    /// shipped themes.
+    ///
+    /// This is the property the `hover`/`pressed` pair exists to hold, and
+    /// neither of the two obvious implementations holds it everywhere. The
+    /// old one (`lighten` for hover, `darken` for press) always moved hover
+    /// toward white, so on the light theme a hovered button drifted into the
+    /// page. Reversing press instead of extending it fails the other way: a
+    /// press step *toward* the surface has nowhere to go for a fill already
+    /// near it, and `secondary` on the light theme lands exactly on the page
+    /// colour.
+    ///
+    /// `Secondary` is the variant under test because it is the one with a
+    /// resting fill close to the light theme's background — the case both
+    /// wrong answers break on. `Ghost` would pass either way.
+    #[test]
+    fn rest_hover_and_press_are_three_different_fills_in_both_themes() {
+        for palette in [ColorPalette::dark(), ColorPalette::light()] {
+            let mut app = app();
+            app.insert_resource(palette.clone());
+            let e = spawn(&mut app, ButtonVariant::Secondary, false);
+
+            app.update();
+            let resting = bg(&app, e);
+
+            *app.world_mut().get_mut::<Interaction>(e).unwrap() = Interaction::Hovered;
+            app.update();
+            let hovered = bg(&app, e);
+
+            *app.world_mut().get_mut::<Interaction>(e).unwrap() = Interaction::Pressed;
+            app.update();
+            let held = bg(&app, e);
+
+            assert_ne!(resting, hovered, "hover is invisible");
+            assert_ne!(hovered, held, "press is invisible once already hovering");
+            for (name, c) in [("resting", resting), ("hovered", hovered), ("held", held)] {
+                assert_ne!(
+                    c.to_srgba().to_vec3(),
+                    palette.background.to_srgba().to_vec3(),
+                    "the {name} fill is the page colour — the button vanishes"
+                );
+            }
+        }
+    }
+
     #[test]
     fn a_selected_button_still_responds_to_the_pointer() {
         // Selection sits *below* hover in `resting_or_state`. A selected

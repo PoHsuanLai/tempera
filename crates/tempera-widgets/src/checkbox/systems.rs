@@ -54,7 +54,7 @@ pub(crate) fn repaint_checkbox(
             palette.input
         };
         let edge = if hovered {
-            ColorPalette::hover_lift(base_edge, 0.12)
+            ColorPalette::step(base_edge, palette.background, 0.12)
         } else {
             base_edge
         };

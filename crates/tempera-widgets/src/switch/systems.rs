@@ -52,7 +52,7 @@ pub(crate) fn repaint_switch_track(
             palette.muted
         };
         let fill = if hovered {
-            ColorPalette::hover_lift(base, 0.06)
+            ColorPalette::step(base, palette.background, 0.06)
         } else {
             base
         };
