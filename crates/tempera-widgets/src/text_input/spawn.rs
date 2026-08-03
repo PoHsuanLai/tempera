@@ -7,7 +7,7 @@ use bevy_ui_text_input::{
     TextInputStyle as UpstreamCursorStyle,
 };
 
-use super::components::TextInput;
+use super::components::{TextInput, TextInputVariant};
 use crate::theme::{
     ColorPalette, ControlSize, FontHandle, Metrics, Spacing, Step, StyledNode, Typography,
 };
@@ -95,7 +95,28 @@ pub fn spawn_text_input(
     initial: impl Into<String>,
     placeholder: impl Into<String>,
 ) -> TextInputHandle {
-    spawn_text_input_inner(commands, style, initial, placeholder, None)
+    spawn_text_input_inner(
+        commands,
+        style,
+        initial,
+        placeholder,
+        None,
+        TextInputVariant::default(),
+    )
+}
+
+/// Spawn a styled input with an explicit [`TextInputVariant`].
+///
+/// The two variant-less constructors are [`TextInputVariant::Outline`], which
+/// is what tempera has always drawn.
+pub fn spawn_text_input_variant(
+    commands: &mut Commands,
+    style: &TextInputStyle,
+    initial: impl Into<String>,
+    placeholder: impl Into<String>,
+    variant: TextInputVariant,
+) -> TextInputHandle {
+    spawn_text_input_inner(commands, style, initial, placeholder, None, variant)
 }
 
 pub fn spawn_text_input_with_icon(
@@ -105,7 +126,14 @@ pub fn spawn_text_input_with_icon(
     placeholder: impl Into<String>,
     icon: Handle<Image>,
 ) -> TextInputHandle {
-    spawn_text_input_inner(commands, style, initial, placeholder, Some(icon))
+    spawn_text_input_inner(
+        commands,
+        style,
+        initial,
+        placeholder,
+        Some(icon),
+        TextInputVariant::default(),
+    )
 }
 
 /// The leading icon's box.
@@ -122,6 +150,7 @@ fn spawn_text_input_inner(
     initial: impl Into<String>,
     placeholder: impl Into<String>,
     icon: Option<Handle<Image>>,
+    variant: TextInputVariant,
 ) -> TextInputHandle {
     let initial = initial.into();
     let placeholder = placeholder.into();
@@ -133,11 +162,17 @@ fn spawn_text_input_inner(
     let surround = commands
         .spawn((
             TextInput,
+            variant,
             StyledNode::new()
                 .height(ControlSize::Md)
                 .radius(Step::new(1)),
             Node {
                 width: Val::Px(DEFAULT_WIDTH),
+                // Reserved on *every* variant, not just `Outline`. A
+                // `bevy_ui` border is drawn inside the box, so growing one
+                // from 0 to 1px on focus would reflow the text the user is
+                // typing. The width is always here; `systems` paints it
+                // `Color::NONE` when the variant has no resting edge.
                 border: UiRect::all(Val::Px(1.0)),
                 padding: UiRect::horizontal(Val::Px(10.0)),
                 align_items: AlignItems::Center,

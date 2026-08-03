@@ -49,8 +49,11 @@ pub use bevy_ui_text_input::{
     SubmitText, TextInputBuffer, TextInputContents, TextInputFilter, TextInputMode, TextInputNode,
     TextInputPrompt, TextInputQueue,
 };
-pub use components::TextInput;
-pub use spawn::{TextInputHandle, TextInputStyle, spawn_text_input, spawn_text_input_with_icon};
+pub use components::{TextInput, TextInputVariant};
+pub use spawn::{
+    TextInputHandle, TextInputStyle, spawn_text_input, spawn_text_input_variant,
+    spawn_text_input_with_icon,
+};
 
 /// Convenience alias for the per-keystroke change-detection pattern.
 /// Bevy doesn't have a generic "ValueChange<String>" event for text
