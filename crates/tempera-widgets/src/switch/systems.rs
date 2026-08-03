@@ -92,10 +92,8 @@ pub(crate) fn drive_switch(
         }
         spring.update(dt);
         let size = size.copied().unwrap_or_default();
-        let inset = 2.0;
-        let travel = size.track_width() - size.thumb_diameter() - 2.0 * inset;
         let t = spring.value.clamp(0.0, 1.0);
-        let thumb_left = inset + t * travel;
+        let thumb_left = SwitchSize::INSET + t * size.thumb_travel();
         for child in kids.iter() {
             if let Ok(mut node) = thumbs.get_mut(child) {
                 node.left = Val::Px(thumb_left);
