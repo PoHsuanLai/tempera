@@ -5,7 +5,7 @@ use bevy::picking::events::{Click, Pointer};
 use bevy::prelude::*;
 
 use super::components::{Card, CardBody, CardChevron, CardExpanded, CardHeader, CardState};
-use crate::theme::{ColorPalette, FontHandle, Typography};
+use crate::theme::{ColorPalette, ControlSize, FontHandle, Step, StyledNode, Typography};
 
 /// Sizing and art for [`Card`]s.
 #[derive(Resource, Clone, Debug, Default)]
@@ -55,14 +55,18 @@ pub fn spawn_card(
     title: impl Into<String>,
     state: CardState,
 ) -> CardParts {
-    // Only *structure* here — flex direction, 100% widths, the parent link.
-    // Every theme-derived value (padding, radius, header height, chevron
-    // box, body gap) is applied by `apply_card_metrics`, so a card that is
-    // already on screen follows a density or base change instead of keeping
-    // the geometry it was born with.
+    // `Node` carries structure — flex direction, 100% widths — and
+    // `StyledNode` *declares* the theme-derived half. One system in the
+    // theme crate resolves every declaration, so a card already on screen
+    // follows a base or density change instead of keeping the geometry it
+    // was born with, and this widget writes no geometry system of its own.
     let card = commands
         .spawn((
             Card,
+            StyledNode::new()
+                .padding_x(Step::new(2))
+                .padding_y(Step::BASE)
+                .radius(Step::new(1)),
             Node {
                 width: Val::Percent(100.0),
                 flex_direction: FlexDirection::Column,
@@ -83,6 +87,7 @@ pub fn spawn_card(
     let header = commands
         .spawn((
             CardHeader,
+            StyledNode::new().height(ControlSize::Sm),
             Node {
                 width: Val::Percent(100.0),
                 flex_direction: FlexDirection::Row,
@@ -121,6 +126,7 @@ pub fn spawn_card(
     // reserves its chevron slot.
     commands.spawn((
         CardChevron(card),
+        StyledNode::new().square(Step::new(3)),
         Node::default(),
         bevy::picking::Pickable::IGNORE,
         ChildOf(header),
@@ -129,6 +135,7 @@ pub fn spawn_card(
     let body = commands
         .spawn((
             CardBody,
+            StyledNode::new().row_gap(Step::new(2)),
             Node {
                 width: Val::Percent(100.0),
                 flex_direction: FlexDirection::Column,

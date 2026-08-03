@@ -58,11 +58,13 @@ mod base;
 mod config;
 mod metrics;
 mod scale;
+mod styled;
 
 pub use base::{Base, Step};
 pub use config::{Density, Incoherent, Sizing, TextScale, ThemeConfig, Tokens};
 pub use metrics::{ControlSize, Metrics};
 pub use scale::{ControlHeight, FontSize as TextSize, Gap, Radius, Scale};
+pub use styled::{StyledNode, apply_styled_nodes};
 
 // ---------------------------------------------------------------------------
 // Plugin
@@ -80,7 +82,12 @@ impl Plugin for ThemePlugin {
             .init_resource::<ColorPalette>()
             .init_resource::<Spacing>()
             .init_resource::<Typography>()
-            .init_resource::<FontHandle>();
+            .init_resource::<FontHandle>()
+            // Geometry is declared with `StyledNode` and resolved here, so a
+            // widget states which theme step a field takes and never
+            // recomputes it — one system for every widget, rather than one
+            // per widget holding a mutable query per part.
+            .add_systems(Update, styled::apply_styled_nodes);
     }
 }
 
@@ -475,26 +482,6 @@ impl Default for Typography {
 /// make every hover repaint depend on resources it never reads.
 pub fn palette_changed(palette: Res<ColorPalette>) -> bool {
     palette.is_changed()
-}
-
-/// Run condition for a widget's *geometry* system: something it lays out
-/// from moved, or one of it was just spawned.
-///
-/// The geometry counterpart to [`repaint_needed`], and it exists for the
-/// same reason one layer down. Sizes used to be read once inside a spawn
-/// function and baked into a `Node`, so a density or base change reached
-/// only widgets spawned *after* it — every widget already on screen kept
-/// the geometry it was born with.
-///
-/// `W` is the widget's root marker, so a freshly spawned one gets its
-/// geometry on the frame it appears rather than waiting for a token change
-/// that may never come.
-pub fn relayout_needed<W: Component>(
-    tokens: Res<Tokens>,
-    spacing: Res<Spacing>,
-    fresh: Query<(), Added<W>>,
-) -> bool {
-    tokens.is_changed() || spacing.is_changed() || !fresh.is_empty()
 }
 
 /// Run condition for a widget's repaint system: something it paints from
