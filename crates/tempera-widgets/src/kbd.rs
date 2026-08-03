@@ -9,9 +9,9 @@
 use bevy::ecs::system::SystemParam;
 use bevy::input::keyboard::KeyCode;
 use bevy::prelude::*;
-use leafwing_input_manager::user_input::keyboard::ModifierKey;
 use leafwing_input_manager::user_input::ButtonlikeChord;
 use leafwing_input_manager::user_input::UserInput;
+use leafwing_input_manager::user_input::keyboard::ModifierKey;
 
 use crate::theme::{ColorPalette, FontHandle, ThemePlugin, Typography};
 

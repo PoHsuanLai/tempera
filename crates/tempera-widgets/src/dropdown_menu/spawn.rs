@@ -2,7 +2,7 @@ use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 
 use super::components::DropdownTrigger;
-use crate::button::{spawn_button, ButtonContent, ButtonStyle, ButtonVariant};
+use crate::button::{ButtonContent, ButtonStyle, ButtonVariant, spawn_button};
 use crate::context_menu::MenuItemSpec;
 
 #[derive(SystemParam)]

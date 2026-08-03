@@ -5,8 +5,8 @@ use super::components::{
     NumberField, NumberFieldConfig, NumberFieldKind, NumberFieldRange, NumberFieldStep,
     NumberFieldValue,
 };
-use crate::button::{spawn_button, ButtonContent, ButtonSize, ButtonStyle, ButtonVariant};
-use crate::text_input::{spawn_text_input, TextInputFilter, TextInputStyle};
+use crate::button::{ButtonContent, ButtonSize, ButtonStyle, ButtonVariant, spawn_button};
+use crate::text_input::{TextInputFilter, TextInputStyle, spawn_text_input};
 use crate::theme::Spacing;
 
 #[derive(SystemParam)]
@@ -57,7 +57,9 @@ pub fn spawn_number_field(
         .insert(ChildOf(root));
 
     let handle = spawn_text_input(commands, &style.text_input, format!("{initial}"), "0");
-    commands.entity(handle.inner).insert(TextInputFilter::Decimal);
+    commands
+        .entity(handle.inner)
+        .insert(TextInputFilter::Decimal);
     commands.entity(handle.surround).insert((
         Node {
             width: Val::Px(80.0),
@@ -122,7 +124,10 @@ pub fn spawn_number_field_configured(
         ))
         .id();
 
-    let stepper_text_font = style.text_input.font.text_font(style.text_input.typography.xs);
+    let stepper_text_font = style
+        .text_input
+        .font
+        .text_font(style.text_input.typography.xs);
     let stepper_text_color = TextColor(style.button.palette.muted_foreground);
     let bg = config.bg;
     let bg_hover = config.bg_hover;
@@ -157,11 +162,11 @@ pub fn spawn_number_field_configured(
         bevy::picking::Pickable::IGNORE,
         ChildOf(dec),
     ));
-    commands.entity(dec).observe(
-        move |_: On<Pointer<Click>>, mut commands: Commands| {
+    commands
+        .entity(dec)
+        .observe(move |_: On<Pointer<Click>>, mut commands: Commands| {
             commands.trigger(Activate { entity: dec });
-        },
-    );
+        });
     commands.entity(dec).observe(
         move |mut on: On<Pointer<bevy::picking::events::Over>>,
               mut bg_q: Query<&mut BackgroundColor>| {
@@ -239,11 +244,11 @@ pub fn spawn_number_field_configured(
         bevy::picking::Pickable::IGNORE,
         ChildOf(inc),
     ));
-    commands.entity(inc).observe(
-        move |_: On<Pointer<Click>>, mut commands: Commands| {
+    commands
+        .entity(inc)
+        .observe(move |_: On<Pointer<Click>>, mut commands: Commands| {
             commands.trigger(Activate { entity: inc });
-        },
-    );
+        });
     commands.entity(inc).observe(
         move |mut on: On<Pointer<bevy::picking::events::Over>>,
               mut bg_q: Query<&mut BackgroundColor>| {

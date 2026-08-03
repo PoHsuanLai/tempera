@@ -150,9 +150,23 @@ pub(crate) fn refilter(
     all_inputs: Query<&TextInputContents>,
     children_q: Query<&Children>,
     lists: Query<&Children, With<CommandList>>,
-    mut groups: Query<(&mut Node, &Children), (With<CommandGroup>, Without<CommandItem>, Without<CommandEmpty>)>,
+    mut groups: Query<
+        (&mut Node, &Children),
+        (
+            With<CommandGroup>,
+            Without<CommandItem>,
+            Without<CommandEmpty>,
+        ),
+    >,
     mut items: Query<(&CommandItem, &mut Node), Without<CommandGroup>>,
-    mut empty: Query<&mut Node, (With<CommandEmpty>, Without<CommandGroup>, Without<CommandItem>)>,
+    mut empty: Query<
+        &mut Node,
+        (
+            With<CommandEmpty>,
+            Without<CommandGroup>,
+            Without<CommandItem>,
+        ),
+    >,
     mut sels: Query<&mut CommandSelection>,
 ) {
     // Determine which palettes need a refilter. A palette refilters
@@ -187,7 +201,11 @@ pub(crate) fn refilter(
                         continue;
                     };
                     let matches = query.is_empty() || item.search_text.contains(&query);
-                    let new_display = if matches { Display::Flex } else { Display::None };
+                    let new_display = if matches {
+                        Display::Flex
+                    } else {
+                        Display::None
+                    };
                     if item_node.display != new_display {
                         item_node.display = new_display;
                     }
@@ -279,7 +297,14 @@ fn find_input_entity(
 fn first_visible_item(
     palette_kids: &Children,
     lists: &Query<&Children, With<CommandList>>,
-    groups: &Query<(&mut Node, &Children), (With<CommandGroup>, Without<CommandItem>, Without<CommandEmpty>)>,
+    groups: &Query<
+        (&mut Node, &Children),
+        (
+            With<CommandGroup>,
+            Without<CommandItem>,
+            Without<CommandEmpty>,
+        ),
+    >,
     items: &Query<(&CommandItem, &mut Node), Without<CommandGroup>>,
 ) -> Option<Entity> {
     for list_e in palette_kids.iter() {
@@ -311,7 +336,13 @@ pub(crate) fn repaint_items(
     palettes: Query<(&CommandSelection, &Children), With<Command>>,
     lists: Query<&Children, With<CommandList>>,
     groups: Query<&Children, With<CommandGroup>>,
-    mut items: Query<(Entity, &CommandItem, &Interaction, &Children, &mut BackgroundColor)>,
+    mut items: Query<(
+        Entity,
+        &CommandItem,
+        &Interaction,
+        &Children,
+        &mut BackgroundColor,
+    )>,
     mut text_colors: Query<&mut TextColor>,
 ) {
     for (selection, palette_kids) in &palettes {
@@ -331,10 +362,7 @@ pub(crate) fn repaint_items(
                     let selected = selection.selected == Some(entity)
                         || matches!(interaction, Interaction::Hovered | Interaction::Pressed);
                     let (surface, text) = if item.disabled {
-                        (
-                            Color::NONE,
-                            with_alpha(palette.foreground, 0.5),
-                        )
+                        (Color::NONE, with_alpha(palette.foreground, 0.5))
                     } else if selected {
                         (palette.accent, palette.accent_foreground)
                     } else {

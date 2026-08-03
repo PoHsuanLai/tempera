@@ -1,8 +1,10 @@
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 
-use super::components::{Select, SelectChevron, SelectDisplayText, SelectOption, SelectOptions, SelectValue};
-use crate::theme::{ColorPalette, FontHandle, Typography};
+use super::components::{
+    Select, SelectChevron, SelectDisplayText, SelectOption, SelectOptions, SelectValue,
+};
+use crate::theme::{ColorPalette, FontHandle, Step, StyledNode, Typography};
 
 #[derive(SystemParam)]
 pub struct SelectStyle<'w> {
@@ -27,18 +29,20 @@ pub fn spawn_select(
         .map(|o| o.label.clone())
         .unwrap_or_default();
 
-    info!("[spawn_select] spawning Select with {} options, selected={}", options.len(), selected);
     let root = commands
         .spawn((
             Select,
             SelectValue(selected.to_string()),
             SelectOptions(options),
+            // 24 / 8 / 4 were literals here. The height is step 5 rather than
+            // `ControlSize::Sm` (28) deliberately — a select trigger sits
+            // inside menu rows, not in a form beside inputs, so it takes the
+            // denser figure it always had.
+            StyledNode::new().padding_x(Step::new(2)).radius(Step::BASE),
             Node {
                 width: Val::Px(120.0),
                 height: Val::Px(24.0),
-                padding: UiRect::axes(Val::Px(8.0), Val::Px(0.0)),
                 border: UiRect::all(Val::Px(1.0)),
-                border_radius: BorderRadius::all(Val::Px(4.0)),
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::SpaceBetween,

@@ -28,7 +28,7 @@ pub use components::{
     NumberField, NumberFieldConfig, NumberFieldKind, NumberFieldPrecision, NumberFieldRange,
     NumberFieldStep, NumberFieldValue,
 };
-pub use spawn::{spawn_number_field, spawn_number_field_configured, NumberFieldStyle};
+pub use spawn::{NumberFieldStyle, spawn_number_field, spawn_number_field_configured};
 pub use systems::NumberFieldValueChange as ValueChange;
 
 pub struct NumberFieldPlugin;
@@ -47,7 +47,10 @@ impl Plugin for NumberFieldPlugin {
         app.add_observer(systems::stepper_on_activate);
         app.add_systems(
             Update,
-            (systems::sync_buffer_from_value, systems::sync_value_from_buffer),
+            (
+                systems::sync_buffer_from_value,
+                systems::sync_value_from_buffer,
+            ),
         );
     }
 }

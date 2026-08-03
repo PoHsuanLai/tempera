@@ -49,8 +49,8 @@ mod systems;
 pub use components::{Dialog, DialogBackdrop, DialogCard, DialogClose, DialogContent};
 pub use messages::DialogDismissed;
 pub use spawn::{
-    spawn_dialog, DialogConfig, DialogParts, DialogStyle, CARD_HEIGHT, CARD_PADDING, CARD_RADIUS,
-    CARD_WIDTH, TITLE_BAR_HEIGHT, TITLE_BAR_PADDING_X,
+    CARD_HEIGHT, CARD_PADDING, CARD_RADIUS, CARD_WIDTH, DialogConfig, DialogParts, DialogStyle,
+    TITLE_BAR_HEIGHT, TITLE_BAR_PADDING_X, spawn_dialog,
 };
 
 pub struct DialogPlugin;

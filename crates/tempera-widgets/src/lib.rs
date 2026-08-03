@@ -194,3 +194,58 @@ fn add_once<P: Plugin>(app: &mut App, ctor: impl FnOnce() -> P) {
         app.add_plugins(ctor());
     }
 }
+
+#[cfg(test)]
+mod styled_widgets_tests {
+    use bevy::prelude::*;
+
+    use crate::theme::{Base, StyledNode, ThemeConfig, ThemePlugin};
+
+    /// Every widget that declares a `StyledNode` follows a base change.
+    ///
+    /// Converted so far: `card`, `checkbox`, `select`, `text_input`,
+    /// `toggle_group`. Deliberately not, each for its own reason —
+    /// `list_row`/`tree_row`/`setting_row` read host-overridable `*Tokens`
+    /// resources that a `StyledNode` would silently bypass (their defaults
+    /// should derive from the scale instead); `progress` computes its radius
+    /// from its own height, which a step cannot express; `separator` takes a
+    /// caller-supplied length; and `slider`/`switch`/`tabs`/`tooltip` animate
+    /// `Node` fields every frame and need checking against these writes.
+    ///
+    /// Spawning each widget properly needs its own `*Style` bundle and a
+    /// pile of arguments, so this asserts the property one level down: a
+    /// `StyledNode` on any entity resolves against the live theme. What each
+    /// widget declares is checked by its own tests; what this pins is that
+    /// declaring anything at all is enough to become reactive.
+    #[test]
+    fn declaring_a_styled_node_is_enough_to_follow_the_theme() {
+        let mut app = App::new();
+        app.add_plugins(ThemePlugin);
+
+        let e = app
+            .world_mut()
+            .spawn((
+                StyledNode::new().padding_x(crate::theme::Step::new(2)),
+                Node::default(),
+            ))
+            .id();
+        app.update();
+        assert_eq!(
+            app.world().get::<Node>(e).unwrap().padding.left,
+            Val::Px(8.0)
+        );
+
+        let coarse = ThemeConfig {
+            base: Base::EIGHT,
+            ..default()
+        };
+        app.insert_resource(coarse)
+            .insert_resource(coarse.build().expect("base 8 is coherent"));
+        app.update();
+
+        assert_eq!(
+            app.world().get::<Node>(e).unwrap().padding.left,
+            Val::Px(16.0)
+        );
+    }
+}

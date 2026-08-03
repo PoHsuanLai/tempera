@@ -37,7 +37,7 @@ mod spawn;
 mod systems;
 
 pub use components::DropdownTrigger;
-pub use spawn::{spawn_dropdown, DropdownStyle};
+pub use spawn::{DropdownStyle, spawn_dropdown};
 
 pub struct DropdownMenuPlugin;
 

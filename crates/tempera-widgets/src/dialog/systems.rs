@@ -1,5 +1,5 @@
-use bevy::input::keyboard::KeyboardInput;
 use bevy::input::ButtonState;
+use bevy::input::keyboard::KeyboardInput;
 use bevy::prelude::*;
 
 use super::components::Dialog;

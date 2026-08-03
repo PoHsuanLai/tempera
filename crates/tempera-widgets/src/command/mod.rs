@@ -37,8 +37,8 @@
 //! - Groups with no matching items are hidden.
 //! - When no items match, the `CommandEmpty` placeholder is shown.
 
-use bevy::input_focus::tab_navigation::TabNavigationPlugin;
 use bevy::input_focus::InputDispatchPlugin;
+use bevy::input_focus::tab_navigation::TabNavigationPlugin;
 use bevy::prelude::*;
 
 use crate::text_input::TextInputStylePlugin;
@@ -52,7 +52,7 @@ pub use components::{
     Command, CommandActivated, CommandEmpty, CommandGroup, CommandGroupHeading, CommandInputRow,
     CommandItem, CommandItemSpec, CommandList, CommandSection, CommandSelection,
 };
-pub use spawn::{spawn_command, spawn_command_with_icon, CommandStyle};
+pub use spawn::{CommandStyle, spawn_command, spawn_command_with_icon};
 
 pub struct CommandPlugin;
 
