@@ -7,6 +7,7 @@
 use bevy::ecs::query::QueryData;
 use bevy::prelude::*;
 use bevy::ui::{InteractionDisabled, Pressed};
+use bevy_resvg::prelude::{SvgColor, UiSvg};
 
 use super::components::{ButtonVariant, IconTint, Selected};
 use super::spawn::{ButtonStyle, VariantVisuals, variant_visuals};
@@ -98,17 +99,29 @@ fn with_alpha(c: Color, a: f32) -> Color {
     Color::srgba(s.red, s.green, s.blue, s.alpha * a)
 }
 
-/// For buttons with [`IconTint`], write the appropriate icon color
-/// into the `ImageNode.color` of any direct image child. Pairs with
-/// the [`ButtonVariant::Ghost`] no-surface look — dawai's toolbar
-/// glyphs (sidebar toggles, chevrons) recolor on hover instead of
-/// filling a background.
+/// For buttons with [`IconTint`], write the appropriate icon color onto
+/// any direct icon child. Pairs with the [`ButtonVariant::Ghost`]
+/// no-surface look — toolbar glyphs (sidebar toggles, chevrons) recolor on
+/// hover instead of filling a background.
+///
+/// # Why this writes `SvgColor` and not `ImageNode.color`
+///
+/// `ImageNode` on an icon child belongs to `bevy_resvg`: it inserts one
+/// when the SVG finishes loading, replaces it when the asset changes, and
+/// writes its `color` from `SvgColor`. Two systems writing the same field
+/// with no ordering between them means the tint depends on which ran last,
+/// which is a bug that only shows up as an occasional wrong-coloured glyph.
+///
+/// So there is one writer. Tempera declares the colour it wants and
+/// `bevy_resvg` applies it — the same shape as [`Selected`], where the
+/// widget declares state and the paint system resolves it.
 pub fn repaint_icon_tints(
+    mut commands: Commands,
     buttons: Query<
         (&IconTint, &Interaction, Has<InteractionDisabled>, &Children),
         With<super::TemperaButton>,
     >,
-    mut icons: Query<&mut ImageNode>,
+    icons: Query<Option<&SvgColor>, With<UiSvg>>,
 ) {
     for (tint, interaction, disabled, kids) in &buttons {
         let mut color = match interaction {
@@ -119,10 +132,13 @@ pub fn repaint_icon_tints(
             color = with_alpha(color, 0.5);
         }
         for child in kids.iter() {
-            if let Ok(mut image) = icons.get_mut(child) {
-                if image.color != color {
-                    image.color = color;
-                }
+            // Only write on a change. `SvgColor` drives a `Changed`-filtered
+            // system inside `bevy_resvg`, so an unconditional insert would
+            // re-tint every icon every frame.
+            if let Ok(current) = icons.get(child)
+                && current.is_none_or(|c| c.0 != color)
+            {
+                commands.entity(child).insert(SvgColor(color));
             }
         }
     }

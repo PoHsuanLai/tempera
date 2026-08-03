@@ -1,6 +1,7 @@
 use bevy::ecs::system::SystemParam;
 use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::prelude::*;
+use bevy_resvg::prelude::{SvgColor, SvgFile, UiSvg};
 
 use super::components::{
     Command, CommandEmpty, CommandGroup, CommandGroupHeading, CommandInputRow, CommandItem,
@@ -65,7 +66,7 @@ pub fn spawn_command_with_icon(
     commands: &mut Commands,
     style: &CommandStyle,
     placeholder: impl Into<String>,
-    icon: Option<Handle<Image>>,
+    icon: Option<Handle<SvgFile>>,
     sections: Vec<CommandSection>,
 ) -> Entity {
     let label_font = style.font.text_font(style.typography.sm);
@@ -131,7 +132,7 @@ fn spawn_input_row(
     style: &CommandStyle,
     _label_font: &TextFont,
     placeholder: String,
-    icon: Option<Handle<Image>>,
+    icon: Option<Handle<SvgFile>>,
 ) {
     let row = commands
         .spawn((
@@ -157,7 +158,8 @@ fn spawn_input_row(
         // asset is white/alpha; if it's already colored the multiply
         // still composes sensibly.
         commands.spawn((
-            ImageNode::new(handle).with_color(style.palette.muted_foreground),
+            UiSvg(handle),
+            SvgColor(style.palette.muted_foreground),
             Node {
                 width: style.text_input.metrics.gap(Step::new(4)).into(),
                 height: style.text_input.metrics.gap(Step::new(4)).into(),

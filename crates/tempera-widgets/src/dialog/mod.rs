@@ -60,6 +60,11 @@ impl Plugin for DialogPlugin {
         if !app.is_plugin_added::<ThemePlugin>() {
             app.add_plugins(ThemePlugin);
         }
+        // Owns the SVG asset loader and the `UiSvg` → `ImageNode` step that
+        // makes an icon child visible at all.
+        if !app.is_plugin_added::<bevy_resvg::plugin::SvgPlugin>() {
+            app.add_plugins(bevy_resvg::plugin::SvgPlugin);
+        }
         app.add_message::<DialogDismissed>()
             .add_systems(Update, systems::dismiss_on_escape);
     }

@@ -1,6 +1,7 @@
 //! Mirror [`CardExpanded`] onto the body's `Display` and the chevron's art.
 
 use bevy::prelude::*;
+use bevy_resvg::prelude::{SvgColor, UiSvg};
 
 use super::components::{Card, CardBody, CardChevron, CardExpanded};
 use super::spawn::CardTokens;
@@ -43,15 +44,18 @@ pub(crate) fn apply_card_body(
 /// Separate from [`apply_card_body`] because they answer different
 /// questions — one is layout, one is art — and because a chevron names its
 /// own card, so this needs no tree walking at all.
+/// Both the art and the tint are *declared* here — `UiSvg` for which glyph,
+/// `SvgColor` for what colour — and `bevy_resvg` applies them to the
+/// `ImageNode` it owns. The slot is still reserved at spawn without art, so
+/// the title does not shift sideways when the handle lands.
 pub(crate) fn apply_card_chevron(
     tokens: Res<CardTokens>,
     palette: Res<ColorPalette>,
     open: Query<Has<CardExpanded>, With<Card>>,
-    chevrons: Query<(Entity, &CardChevron)>,
-    mut images: Query<&mut ImageNode>,
+    chevrons: Query<(Entity, &CardChevron, Option<&UiSvg>, Option<&SvgColor>)>,
     mut commands: Commands,
 ) {
-    for (entity, chevron) in &chevrons {
+    for (entity, chevron, current_art, current_tint) in &chevrons {
         let Ok(expanded) = open.get(chevron.0) else {
             continue;
         };
@@ -62,23 +66,16 @@ pub(crate) fn apply_card_chevron(
         };
         let Some(handle) = art else { continue };
 
-        match images.get_mut(entity) {
-            Ok(mut image) => {
-                if image.image != *handle {
-                    image.image = handle.clone();
-                }
-                if image.color != palette.muted_foreground {
-                    image.color = palette.muted_foreground;
-                }
-            }
-            // First frame the art is available: the slot was reserved at
-            // spawn without an `ImageNode`, so the title does not shift
-            // sideways when the handle lands.
-            Err(_) => {
-                commands
-                    .entity(entity)
-                    .insert(ImageNode::new(handle.clone()).with_color(palette.muted_foreground));
-            }
+        // Write only on a change: `bevy_resvg` re-renders on `Changed<UiSvg>`
+        // and re-tints on `Changed<SvgColor>`, so an unconditional insert
+        // would rasterise every chevron every frame.
+        if current_art.is_none_or(|c| c.0 != *handle) {
+            commands.entity(entity).insert(UiSvg(handle.clone()));
+        }
+        if current_tint.is_none_or(|c| c.0 != palette.muted_foreground) {
+            commands
+                .entity(entity)
+                .insert(SvgColor(palette.muted_foreground));
         }
     }
 }

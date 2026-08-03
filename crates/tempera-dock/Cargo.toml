@@ -10,6 +10,8 @@ license.workspace = true
 workspace = true
 
 [dependencies]
+# Icon handles are `Handle<SvgFile>` — see the note in tempera-widgets.
+bevy_resvg = "2.5"
 # `bevy_picking` is not optional here: dividers are dragged, and drag is a
 # picking event. `bevy_ui` brings `Node`/`ComputedNode`, which is the whole
 # substrate. No `bevy_ui_render` — the dock builds a node tree and never draws

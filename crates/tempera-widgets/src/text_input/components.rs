@@ -136,7 +136,6 @@ impl TextInputVariant {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

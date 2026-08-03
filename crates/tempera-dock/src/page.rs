@@ -60,6 +60,7 @@
 //! metadata, without this crate knowing what that is.
 
 use bevy::prelude::*;
+use bevy_resvg::prelude::SvgFile;
 
 /// One candidate content of a pane. Spawn it as a **child** of the pane frame.
 ///
@@ -99,9 +100,9 @@ pub struct PageLabel(pub &'static str);
 /// Optional icon for a chooser.
 ///
 /// Outside [`Page`]'s require chain deliberately: not every page has one, and
-/// there is no useful default `Handle<Image>` to invent for those that do not.
+/// there is no useful default `Handle<SvgFile>` to invent for those that do not.
 #[derive(Component, Debug, Clone)]
-pub struct PageIcon(pub Handle<Image>);
+pub struct PageIcon(pub Handle<SvgFile>);
 
 /// Sort key for a chooser; lower goes first.
 #[derive(Component, Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]

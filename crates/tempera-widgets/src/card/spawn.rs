@@ -3,6 +3,7 @@
 use bevy::ecs::system::SystemParam;
 use bevy::picking::events::{Click, Pointer};
 use bevy::prelude::*;
+use bevy_resvg::prelude::SvgFile;
 
 use super::components::{Card, CardBody, CardChevron, CardExpanded, CardHeader, CardState};
 use crate::theme::{ColorPalette, ControlSize, FontHandle, Step, StyledNode, Typography};
@@ -11,9 +12,9 @@ use crate::theme::{ColorPalette, ControlSize, FontHandle, Step, StyledNode, Typo
 #[derive(Resource, Clone, Debug, Default)]
 pub struct CardTokens {
     /// Chevron pointing down — the body is showing.
-    pub chevron_expanded: Option<Handle<Image>>,
+    pub chevron_expanded: Option<Handle<SvgFile>>,
     /// Chevron pointing right — the body is hidden.
-    pub chevron_collapsed: Option<Handle<Image>>,
+    pub chevron_collapsed: Option<Handle<SvgFile>>,
 }
 
 /// The slice of theme tokens a card reads *at spawn*.

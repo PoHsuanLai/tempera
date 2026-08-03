@@ -2,6 +2,7 @@
 
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
+use bevy_resvg::prelude::SvgFile;
 use tempera::dialog::{DialogConfig, DialogStyle, spawn_dialog};
 use tempera::theme::{ColorPalette, FontHandle, Typography};
 
@@ -34,7 +35,7 @@ pub struct SettingsStyle<'w> {
 /// the dialog is dismissed by Escape or the backdrop, which tempera handles
 /// either way.
 #[derive(Resource, Debug, Clone, Default)]
-pub struct SettingsCloseIcon(pub Option<Handle<Image>>);
+pub struct SettingsCloseIcon(pub Option<Handle<SvgFile>>);
 
 /// The dialog title. A host renames it without forking the crate.
 #[derive(Resource, Debug, Clone)]

@@ -1,5 +1,6 @@
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
+use bevy_resvg::prelude::{SvgColor, SvgFile, UiSvg};
 
 use super::components::{
     ChevronState, TreeRow, TreeRowChevron, TreeRowExpanded, TreeRowHeader, TreeRowLabel,
@@ -25,9 +26,9 @@ pub struct TreeRowTokens {
     /// Corner rounding on the hover fill.
     pub corner_radius: f32,
     /// Chevron pointing down.
-    pub chevron_expanded: Option<Handle<Image>>,
+    pub chevron_expanded: Option<Handle<SvgFile>>,
     /// Chevron pointing right.
-    pub chevron_collapsed: Option<Handle<Image>>,
+    pub chevron_collapsed: Option<Handle<SvgFile>>,
     /// Hard character cap on the label, `None` to rely on flex alone.
     ///
     /// A cap exists because flex shrink plus text overflow races the
@@ -93,7 +94,7 @@ pub struct TreeRowStyle<'w> {
 pub struct TreeRowSpec {
     label: String,
     suffix: Option<String>,
-    icon: Option<Handle<Image>>,
+    icon: Option<Handle<SvgFile>>,
     icon_tint: Option<Color>,
     depth: u16,
     chevron: Option<ChevronState>,
@@ -119,7 +120,7 @@ impl TreeRowSpec {
 
     /// Leading icon.
     #[must_use]
-    pub fn icon(mut self, icon: Handle<Image>) -> Self {
+    pub fn icon(mut self, icon: Handle<SvgFile>) -> Self {
         self.icon = Some(icon);
         self
     }
@@ -216,13 +217,14 @@ pub fn spawn_tree_row(commands: &mut Commands, style: &TreeRowStyle, spec: TreeR
         // Without art the node still occupies its slot, so the label does
         // not shift left and then jump right once the handles land.
         if let Some(handle) = handle {
-            chevron.insert(ImageNode::new(handle).with_color(palette.muted_foreground));
+            chevron.insert((UiSvg(handle), SvgColor(palette.muted_foreground)));
         }
     }
 
     if let Some(icon) = spec.icon {
         commands.spawn((
-            ImageNode::new(icon).with_color(spec.icon_tint.unwrap_or(palette.muted_foreground)),
+            UiSvg(icon),
+            SvgColor(spec.icon_tint.unwrap_or(palette.muted_foreground)),
             Node {
                 width: Val::Px(tokens.icon_size),
                 height: Val::Px(tokens.icon_size),
@@ -286,7 +288,10 @@ pub(crate) fn indent_px(step: f32, depth: u16) -> f32 {
     step * (depth as f32 + 1.0)
 }
 
-pub(crate) fn chevron_handle(tokens: &TreeRowTokens, state: ChevronState) -> Option<Handle<Image>> {
+pub(crate) fn chevron_handle(
+    tokens: &TreeRowTokens,
+    state: ChevronState,
+) -> Option<Handle<SvgFile>> {
     match state {
         ChevronState::Expanded => tokens.chevron_expanded.clone(),
         ChevronState::Collapsed => tokens.chevron_collapsed.clone(),

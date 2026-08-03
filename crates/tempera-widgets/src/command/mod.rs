@@ -70,6 +70,11 @@ impl Plugin for CommandPlugin {
         if !app.is_plugin_added::<TextInputStylePlugin>() {
             app.add_plugins(TextInputStylePlugin);
         }
+        // Owns the SVG asset loader and the `UiSvg` → `ImageNode` step that
+        // makes an icon child visible at all.
+        if !app.is_plugin_added::<bevy_resvg::plugin::SvgPlugin>() {
+            app.add_plugins(bevy_resvg::plugin::SvgPlugin);
+        }
         app.add_observer(systems::on_item_click);
         app.add_observer(systems::on_keyboard);
         app.add_systems(

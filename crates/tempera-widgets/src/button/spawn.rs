@@ -7,11 +7,11 @@
 
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
+use bevy_resvg::prelude::{SvgFile, UiSvg};
 
 use super::components::{ButtonSize, ButtonVariant};
 use crate::theme::{
-    ColorPalette, Emphasis, FontHandle, Metrics, Reactivity, Spacing, Surface, Typography,
-    visuals,
+    ColorPalette, Emphasis, FontHandle, Metrics, Reactivity, Spacing, Surface, Typography, visuals,
 };
 
 /// The slice of theme tokens read by button systems and the
@@ -49,11 +49,16 @@ impl<'w> ButtonStyle<'w> {
 ///
 /// Text and Icon are mutually exclusive in the common case; for an
 /// icon-with-label use [`ButtonContent::TextAndIcon`].
+///
+/// Icons are SVG. A widget glyph is monochrome line art that scales with
+/// `Metrics` and tints from the palette — a vector answers all three, a
+/// bitmap answers none. `asset_server.load("icons/search.svg")` gives the
+/// `Handle<SvgFile>` this wants.
 #[derive(Clone, Debug)]
 pub enum ButtonContent {
     Text(String),
-    Icon(Handle<Image>),
-    TextAndIcon { text: String, icon: Handle<Image> },
+    Icon(Handle<SvgFile>),
+    TextAndIcon { text: String, icon: Handle<SvgFile> },
 }
 
 impl ButtonContent {
@@ -63,7 +68,7 @@ impl ButtonContent {
     }
 
     #[must_use]
-    pub fn icon(handle: Handle<Image>) -> Self {
+    pub fn icon(handle: Handle<SvgFile>) -> Self {
         Self::Icon(handle)
     }
 }
@@ -173,7 +178,7 @@ fn spawn_text(
 
 fn spawn_icon(
     parent: &mut ChildSpawnerCommands,
-    image: Handle<Image>,
+    image: Handle<SvgFile>,
     size: ButtonSize,
     height: f32,
 ) {
@@ -189,8 +194,12 @@ fn spawn_icon(
     } else {
         (height * 0.5).floor()
     };
+    // `UiSvg`, not `ImageNode`: `bevy_resvg` inserts the `ImageNode` once
+    // the asset lands, and its query is filtered `Without<ImageNode>`. An
+    // `ImageNode` written here would make the icon invisible — the plugin
+    // would skip the entity and never fill in the rasterised image.
     parent.spawn((
-        ImageNode::new(image),
+        UiSvg(image),
         Node {
             width: Val::Px(icon_size),
             height: Val::Px(icon_size),
@@ -278,7 +287,6 @@ pub(crate) fn variant_visuals(variant: ButtonVariant, palette: &ColorPalette) ->
     }
 }
 
-
 #[cfg(test)]
 mod recipe_tests {
     use super::*;
@@ -300,38 +308,94 @@ mod recipe_tests {
         let p = ColorPalette::dark();
         let case = |variant: ButtonVariant| {
             let v = variant_visuals(variant, &p);
-            (v.bg_resting, v.bg_hover, v.bg_pressed, v.border_resting, v.border_width, v.fg_resting)
+            (
+                v.bg_resting,
+                v.bg_hover,
+                v.bg_pressed,
+                v.border_resting,
+                v.border_width,
+                v.fg_resting,
+            )
         };
 
         let step = |c: Color, a: f32| ColorPalette::step(c, p.background, a);
 
         assert_eq!(
             case(ButtonVariant::Default),
-            (p.primary, step(p.primary, 0.08), step(p.primary, 0.14), Color::NONE, 0.0, p.primary_foreground)
+            (
+                p.primary,
+                step(p.primary, 0.08),
+                step(p.primary, 0.14),
+                Color::NONE,
+                0.0,
+                p.primary_foreground
+            )
         );
         assert_eq!(
             case(ButtonVariant::Secondary),
-            (p.secondary, step(p.secondary, 0.08), step(p.secondary, 0.14), Color::NONE, 0.0, p.secondary_foreground)
+            (
+                p.secondary,
+                step(p.secondary, 0.08),
+                step(p.secondary, 0.14),
+                Color::NONE,
+                0.0,
+                p.secondary_foreground
+            )
         );
         assert_eq!(
             case(ButtonVariant::Destructive),
-            (p.destructive, step(p.destructive, 0.08), step(p.destructive, 0.14), Color::NONE, 0.0, p.destructive_foreground)
+            (
+                p.destructive,
+                step(p.destructive, 0.08),
+                step(p.destructive, 0.14),
+                Color::NONE,
+                0.0,
+                p.destructive_foreground
+            )
         );
         assert_eq!(
             case(ButtonVariant::Outline),
-            (Color::NONE, p.muted, step(p.muted, 0.08), p.border, 1.0, p.foreground)
+            (
+                Color::NONE,
+                p.muted,
+                step(p.muted, 0.08),
+                p.border,
+                1.0,
+                p.foreground
+            )
         );
         assert_eq!(
             case(ButtonVariant::Ghost),
-            (Color::NONE, p.muted, step(p.muted, 0.08), Color::NONE, 0.0, p.foreground)
+            (
+                Color::NONE,
+                p.muted,
+                step(p.muted, 0.08),
+                Color::NONE,
+                0.0,
+                p.foreground
+            )
         );
         assert_eq!(
             case(ButtonVariant::Bare),
-            (Color::NONE, Color::NONE, Color::NONE, Color::NONE, 0.0, p.foreground)
+            (
+                Color::NONE,
+                Color::NONE,
+                Color::NONE,
+                Color::NONE,
+                0.0,
+                p.foreground
+            )
         );
         assert_eq!(
             case(ButtonVariant::Link),
-            (Color::NONE, Color::NONE, Color::NONE, Color::NONE, 0.0, p.primary)
+            (
+                Color::NONE,
+                Color::NONE,
+                Color::NONE,
+                Color::NONE,
+                0.0,
+                p.primary
+            )
         );
     }
 }

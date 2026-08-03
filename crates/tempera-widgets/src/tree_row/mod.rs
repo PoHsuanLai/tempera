@@ -67,6 +67,11 @@ impl Plugin for TreeRowPlugin {
         if !app.is_plugin_added::<CursorPlugin>() {
             app.add_plugins(CursorPlugin);
         }
+        // Owns the SVG asset loader and the `UiSvg` → `ImageNode` step that
+        // makes an icon child visible at all.
+        if !app.is_plugin_added::<bevy_resvg::plugin::SvgPlugin>() {
+            app.add_plugins(bevy_resvg::plugin::SvgPlugin);
+        }
         app.init_resource::<TreeRowTokens>().add_systems(
             Update,
             (
@@ -81,6 +86,7 @@ impl Plugin for TreeRowPlugin {
 mod tests {
     use super::*;
     use crate::theme::{ColorPalette, FontHandle, Spacing, Typography};
+    use bevy_resvg::prelude::{SvgFile, UiSvg};
 
     /// A world with the theme resources a row reads, and nothing else —
     /// no rendering, so these run headless.
@@ -91,7 +97,7 @@ mod tests {
             .init_resource::<Spacing>()
             .init_resource::<FontHandle>()
             .init_resource::<TreeRowTokens>()
-            .init_resource::<Assets<Image>>()
+            .init_resource::<Assets<SvgFile>>()
             .add_systems(
                 Update,
                 (
@@ -176,7 +182,7 @@ mod tests {
 
         let chevron = chevron_of(&mut app, row).expect("slot exists");
         assert!(
-            app.world().get::<ImageNode>(chevron).is_none(),
+            app.world().get::<UiSvg>(chevron).is_none(),
             "no art was supplied"
         );
         let size = app.world().resource::<TreeRowTokens>().icon_size;
@@ -190,7 +196,7 @@ mod tests {
     fn toggling_expanded_swaps_the_chevron_art() {
         let mut app = test_app();
         let (collapsed, expanded) = {
-            let images = app.world_mut().resource_mut::<Assets<Image>>();
+            let images = app.world_mut().resource_mut::<Assets<SvgFile>>();
             (images.reserve_handle(), images.reserve_handle())
         };
         {
@@ -205,26 +211,17 @@ mod tests {
         );
         app.update();
         let chevron = chevron_of(&mut app, row).unwrap();
-        assert_eq!(
-            app.world().get::<ImageNode>(chevron).unwrap().image,
-            collapsed
-        );
+        assert_eq!(app.world().get::<UiSvg>(chevron).unwrap().0, collapsed);
 
         app.world_mut().entity_mut(row).insert(TreeRowExpanded);
         app.update();
-        assert_eq!(
-            app.world().get::<ImageNode>(chevron).unwrap().image,
-            expanded
-        );
+        assert_eq!(app.world().get::<UiSvg>(chevron).unwrap().0, expanded);
 
         // Removing the marker must repaint too — `Changed` does not fire
         // for a removal, so a naive system leaves it pointing open.
         app.world_mut().entity_mut(row).remove::<TreeRowExpanded>();
         app.update();
-        assert_eq!(
-            app.world().get::<ImageNode>(chevron).unwrap().image,
-            collapsed
-        );
+        assert_eq!(app.world().get::<UiSvg>(chevron).unwrap().0, collapsed);
     }
 
     #[test]

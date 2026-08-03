@@ -77,6 +77,11 @@ impl Plugin for TextInputStylePlugin {
         if !app.is_plugin_added::<UpstreamPlugin>() {
             app.add_plugins(UpstreamPlugin);
         }
+        // Owns the SVG asset loader and the `UiSvg` → `ImageNode` step that
+        // makes an icon child visible at all.
+        if !app.is_plugin_added::<bevy_resvg::plugin::SvgPlugin>() {
+            app.add_plugins(bevy_resvg::plugin::SvgPlugin);
+        }
         // Focus is a third trigger here, alongside interaction and the
         // palette: a border drops back to idle when focus *leaves* it,
         // which is a fact about the resource rather than about the entity

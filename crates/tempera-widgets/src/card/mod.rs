@@ -51,6 +51,11 @@ impl Plugin for CardPlugin {
         if !app.is_plugin_added::<CursorPlugin>() {
             app.add_plugins(CursorPlugin);
         }
+        // Owns the SVG asset loader and the `UiSvg` → `ImageNode` step that
+        // makes an icon child visible at all.
+        if !app.is_plugin_added::<bevy_resvg::plugin::SvgPlugin>() {
+            app.add_plugins(bevy_resvg::plugin::SvgPlugin);
+        }
         app.init_resource::<CardTokens>().add_systems(
             Update,
             (systems::apply_card_body, systems::apply_card_chevron),
@@ -62,12 +67,13 @@ impl Plugin for CardPlugin {
 mod tests {
     use super::*;
     use crate::theme::{ColorPalette, Tokens};
+    use bevy_resvg::prelude::{SvgColor, SvgFile, UiSvg};
 
     fn test_app() -> App {
         let mut app = App::new();
         app.add_plugins(ThemePlugin)
             .init_resource::<CardTokens>()
-            .init_resource::<Assets<Image>>()
+            .init_resource::<Assets<SvgFile>>()
             .add_systems(
                 Update,
                 (systems::apply_card_body, systems::apply_card_chevron),
@@ -149,7 +155,7 @@ mod tests {
         // forever regardless of whether the card was open.
         let mut app = test_app();
         let (down, right) = {
-            let images = app.world_mut().resource_mut::<Assets<Image>>();
+            let images = app.world_mut().resource_mut::<Assets<SvgFile>>();
             (images.reserve_handle(), images.reserve_handle())
         };
         {
@@ -161,13 +167,13 @@ mod tests {
         let parts = spawn(&mut app, CardState::Expanded);
         app.update();
         let chevron = chevron_of(&app, parts.card);
-        assert_eq!(app.world().get::<ImageNode>(chevron).unwrap().image, down);
+        assert_eq!(app.world().get::<UiSvg>(chevron).unwrap().0, down);
 
         app.world_mut()
             .entity_mut(parts.card)
             .remove::<CardExpanded>();
         app.update();
-        assert_eq!(app.world().get::<ImageNode>(chevron).unwrap().image, right);
+        assert_eq!(app.world().get::<UiSvg>(chevron).unwrap().0, right);
     }
 
     #[test]
@@ -180,7 +186,7 @@ mod tests {
 
         let chevron = chevron_of(&app, parts.card);
         assert!(
-            app.world().get::<ImageNode>(chevron).is_none(),
+            app.world().get::<UiSvg>(chevron).is_none(),
             "no art was supplied"
         );
         assert!(matches!(
@@ -243,7 +249,7 @@ mod tests {
         let mut app = test_app();
         let handle = app
             .world_mut()
-            .resource_mut::<Assets<Image>>()
+            .resource_mut::<Assets<SvgFile>>()
             .reserve_handle();
         app.world_mut()
             .resource_mut::<CardTokens>()
@@ -258,9 +264,44 @@ mod tests {
         app.update();
 
         let chevron = chevron_of(&app, parts.card);
-        assert_eq!(
-            app.world().get::<ImageNode>(chevron).unwrap().color,
-            recoloured
+        assert_eq!(app.world().get::<SvgColor>(chevron).unwrap().0, recoloured);
+    }
+
+    /// Tempera declares the icon; it never writes the `ImageNode`.
+    ///
+    /// `bevy_resvg` owns that component — it inserts one when the SVG
+    /// finishes loading and writes its `color` from `SvgColor`. If tempera
+    /// wrote it too, the tint would depend on which system happened to run
+    /// last, and the glyph would be the wrong colour intermittently.
+    ///
+    /// Worse, `bevy_resvg`'s insert query is filtered `Without<ImageNode>`:
+    /// an `ImageNode` written here would make the plugin skip the entity
+    /// entirely, and the icon would never appear at all. Both failures are
+    /// invisible in a headless test that only checks colours, which is why
+    /// this asserts on the component's *absence*.
+    #[test]
+    fn tempera_never_writes_the_image_node() {
+        let mut app = test_app();
+        let handle = app
+            .world_mut()
+            .resource_mut::<Assets<SvgFile>>()
+            .reserve_handle();
+        app.world_mut()
+            .resource_mut::<CardTokens>()
+            .chevron_expanded = Some(handle);
+        let parts = spawn(&mut app, CardState::Expanded);
+        app.update();
+        app.update();
+
+        let chevron = chevron_of(&app, parts.card);
+        assert!(
+            app.world().get::<UiSvg>(chevron).is_some(),
+            "the chevron should carry the art tempera declared"
+        );
+        assert!(
+            app.world().get::<ImageNode>(chevron).is_none(),
+            "tempera wrote an ImageNode; bevy_resvg owns that component and \
+             its insert query skips entities that already have one"
         );
     }
 
