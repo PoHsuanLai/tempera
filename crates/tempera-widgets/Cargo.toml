@@ -45,6 +45,10 @@ bevy = { version = "0.19", default-features = false, features = [
     # API may shift. Tempera's role is the *styling* layer on top.
     "bevy_ui_widgets",
 ] }
+# Pulled directly rather than through the `bevy` umbrella so we can opt
+# into `curve`, which the umbrella does not surface and which
+# `crate::anim::EaseTween` needs for `EasingCurve`/`EaseFunction`.
+bevy_math = { version = "0.19", features = ["curve"] }
 
 [dev-dependencies]
 bevy = { version = "0.19", features = ["default_font"] }

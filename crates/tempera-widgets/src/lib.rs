@@ -67,6 +67,7 @@ pub use theme::{
 
 pub mod prelude {
     pub use crate::TemperaPlugin;
+    pub use crate::anim::{EaseTween, Lerpable, SMOOTH_DURATION_SECS, Spring};
     pub use crate::button::{
         Activate, Button, ButtonContent, ButtonSize, ButtonStyle, ButtonStylePlugin, ButtonVariant,
         IconTint, Selected, TemperaButton, spawn_button, spawn_button_sized,
@@ -144,8 +145,8 @@ pub mod prelude {
     pub use crate::theme::{ColorPalette, FontHandle, Spacing, ThemePlugin, Typography};
     pub use crate::toast::{
         Toast, ToastConfig, ToastDismissible, ToastDuration, ToastExternalProgress, ToastMessage,
-        ToastNodes, ToastPlugin, ToastPosition, ToastShowProgress, ToastSlide, ToastSpec,
-        ToastTitle, ToastVariant, spawn as spawn_toast, spawn_error as spawn_toast_error,
+        ToastNodes, ToastPlugin, ToastPosition, ToastShowProgress, ToastSpec, ToastTitle,
+        ToastVariant, spawn as spawn_toast, spawn_error as spawn_toast_error,
     };
     pub use crate::tooltip::{Tooltip, TooltipArrow, TooltipPlugin, TooltipPopup, TooltipPosition};
 }

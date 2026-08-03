@@ -35,8 +35,9 @@ use bevy::prelude::*;
 
 use super::components::{
     Toast, ToastDismissible, ToastDuration, ToastExternalProgress, ToastMessage, ToastShowProgress,
-    ToastSlide, ToastTitle, ToastVariant,
+    ToastTitle, ToastVariant,
 };
+use crate::anim::Spring;
 
 /// Builder for a toast entity. Spawn with [`ToastSpec::spawn`].
 #[derive(Clone, Debug)]
@@ -125,7 +126,8 @@ impl ToastSpec {
             self.variant,
             ToastMessage(self.message),
             ToastDuration(self.duration),
-            ToastSlide::default(),
+            // Starts fully off-edge; `drive_toasts` targets 1.0.
+            Spring::<f32>::new(0.0),
             Name::new("tempera::toast"),
         ));
         if let Some(title) = self.title {

@@ -32,9 +32,10 @@ pub fn spawn_checkbox(commands: &mut Commands, style: &CheckboxStyle, checked: b
         StyledNode::new().square(Step::new(4)).radius(Step::BASE),
         TemperaCheckbox,
         // Spring drives the check glyph's scale (0 = hidden, 1 = full
-        // size). armas's checkbox spring is firmer than the switch's
-        // so the checkmark pops in crisply rather than easing.
-        Spring::new(initial_t, initial_t).params(2000.0, 55.0),
+        // size). Its feel (`SPRING_K` / `SPRING_DAMPING`, firmer than the
+        // switch's so the checkmark pops rather than eases) is applied by
+        // `drive_checkbox`, which is the only thing that steps it.
+        Spring::new(initial_t),
         Node {
             border: UiRect::all(Val::Px(BORDER)),
             align_items: AlignItems::Center,
