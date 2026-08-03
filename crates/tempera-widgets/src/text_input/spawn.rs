@@ -8,9 +8,29 @@ use bevy_ui_text_input::{
 };
 
 use super::components::TextInput;
-use crate::theme::{ColorPalette, FontHandle, Spacing, Typography};
+use crate::theme::{ColorPalette, ControlSize, FontHandle, Metrics, Spacing, Typography};
 
+/// The height an input used to declare for itself, kept as a reference
+/// value.
+///
+/// **Nothing lays out from this any more** — the live height comes from
+/// [`ControlSize::Md`], because an input is a control and its height is
+/// declared once for all controls rather than here.
+///
+/// It survives as the fixed point in
+/// `an_input_is_as_tall_as_the_declared_control`: if a future edit to
+/// `Density`'s multiplier table moves `control_md` off 32, that test fails
+/// and someone decides deliberately, rather than the input quietly
+/// desynchronising from the buttons beside it. Deleting it would delete
+/// that check.
+#[cfg(test)]
 pub(crate) const HEIGHT: f32 = 32.0;
+
+/// A **content measure**, not a grid value.
+///
+/// 240px is how wide a single-line input wants to be for the text people
+/// type into it. No spacing scale predicts that, and snapping it to one
+/// would be false precision — see [`Metrics::measure`].
 pub(crate) const DEFAULT_WIDTH: f32 = 240.0;
 
 #[derive(SystemParam)]
@@ -19,6 +39,8 @@ pub struct TextInputStyle<'w> {
     pub spacing: Res<'w, Spacing>,
     pub typography: Res<'w, Typography>,
     pub font: Res<'w, FontHandle>,
+    /// The geometry half — see [`Metrics`].
+    pub metrics: Metrics<'w>,
 }
 
 /// Returned from [`spawn_text_input`] — the two entities that make up
@@ -105,12 +127,16 @@ fn spawn_text_input_inner(
             TextInput,
             Node {
                 width: Val::Px(DEFAULT_WIDTH),
-                height: Val::Px(HEIGHT),
+                height: style.metrics.control(ControlSize::Md).into(),
                 border: UiRect::all(Val::Px(1.0)),
                 border_radius: BorderRadius::all(Val::Px(style.spacing.corner_radius_small)),
                 padding: UiRect::horizontal(Val::Px(10.0)),
                 align_items: AlignItems::Center,
-                column_gap: if has_icon { Val::Px(8.0) } else { Val::ZERO },
+                column_gap: if has_icon {
+                    Val::Px(style.spacing.sm)
+                } else {
+                    Val::ZERO
+                },
                 ..default()
             },
             BackgroundColor(style.palette.background),
@@ -191,5 +217,33 @@ fn spawn_text_input_inner(
     TextInputHandle {
         surround,
         inner: inner_id,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::theme::ThemeConfig;
+
+    #[test]
+    fn an_input_is_as_tall_as_the_declared_control() {
+        // A text input, a default button and a select sit next to each
+        // other in every form tempera renders. If their heights drift they
+        // stop sharing a baseline — the exact defect that made the settings
+        // dialog and the command palette look *almost* aligned. Each was
+        // tuned separately; this is the assertion that says they are the
+        // same quantity.
+        let tokens = ThemeConfig::default().build().unwrap();
+        assert_eq!(tokens.sizing.get(ControlSize::Md).get(), HEIGHT);
+        assert_eq!(crate::button::ButtonSize::Md.height(), HEIGHT);
+    }
+
+    #[test]
+    fn the_default_width_is_a_content_measure_and_stays_put() {
+        // Deliberately *not* on the scale, and deliberately not moved by a
+        // base change: how wide an input wants to be is a fact about the
+        // text people type into it. Pinned so that a later sweep does not
+        // "tidy" it onto the grid.
+        assert_eq!(DEFAULT_WIDTH, 240.0);
     }
 }
