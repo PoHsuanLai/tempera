@@ -9,7 +9,10 @@ use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 
 use super::components::{ButtonSize, ButtonVariant};
-use crate::theme::{ColorPalette, FontHandle, Metrics, Spacing, Typography};
+use crate::theme::{
+    ColorPalette, Emphasis, FontHandle, Metrics, Reactivity, Spacing, Surface, Typography,
+    visuals,
+};
 
 /// The slice of theme tokens read by button systems and the
 /// [`spawn_button`] helper.
@@ -203,132 +206,132 @@ fn spawn_icon(
 
 /// Visual state derived from a variant + the palette. Computed once per
 /// repaint by the style-sync system.
+///
+/// A thin renaming of [`SurfaceVisuals`] into the button's own vocabulary.
+/// The recipe itself lives in `tempera-theme` because it is not a button
+/// fact — a text input and a chip want the same fills — and the button's job
+/// is only to say which point on the grid each of its variants sits at.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct VariantVisuals {
     pub bg_resting: Color,
     pub bg_hover: Color,
     pub bg_pressed: Color,
+    pub bg_selected: Color,
     pub border_resting: Color,
     pub border_width: f32,
     pub fg_resting: Color,
 }
 
-impl VariantVisuals {
-    /// Fill for a selected-but-unhovered button.
+impl ButtonVariant {
+    /// Where this variant sits on the [`Surface`] × [`Emphasis`] ×
+    /// [`Reactivity`] grid.
     ///
-    /// Derived rather than declared per variant, because "selected" is the
-    /// same visual idea everywhere and seven hand-picked colours would be
-    /// seven more numbers to keep in agreement.
-    ///
-    /// **It is deliberately not `bg_hover`.** The tempting definition is
-    /// "hold the state the hover would have shown", and it is wrong: for the
-    /// transparent variants `bg_hover` *is* `muted`, so a selected button
-    /// would already be sitting at its hovered colour and the pointer would
-    /// produce no change at all. A selected control that stops reacting reads
-    /// as a disabled one. Hence a distinct step, below hover, that hover can
-    /// still lift away from.
-    ///
-    /// A variant with no surface to lift — `Bare`, `Link` — starts from
-    /// `muted` instead: those exist to be invisible, but a *selected* one
-    /// still has to be distinguishable from its neighbours.
-    pub(crate) fn bg_selected(&self, palette: &ColorPalette) -> Color {
-        let base = if self.bg_resting == Color::NONE {
-            palette.muted
-        } else {
-            self.bg_resting
-        };
-        ColorPalette::step(base, palette.background, 0.04)
+    /// `Link` returns `None`: it is fill-less, edge-less, draws `primary` as
+    /// *text* and underlines on hover — a text treatment wearing a button's
+    /// clothes. It is handled separately rather than by widening the grid to
+    /// fit one member.
+    fn grid(self) -> Option<(Surface, Emphasis, Reactivity)> {
+        use Emphasis as E;
+        use Reactivity as R;
+        use Surface as S;
+        Some(match self {
+            Self::Default => (S::Filled, E::Primary, R::Fills),
+            Self::Secondary => (S::Filled, E::Secondary, R::Fills),
+            Self::Destructive => (S::Filled, E::Destructive, R::Fills),
+            Self::Outline => (S::Outline, E::Neutral, R::Fills),
+            Self::Ghost => (S::Bare, E::Neutral, R::Fills),
+            // Identical to Ghost but for the pointer: a bare button in a
+            // dense toolbar pairs with `IconTint`, and a fill would flicker
+            // as the pointer crossed the row.
+            Self::Bare => (S::Bare, E::Neutral, R::Inert),
+            Self::Link => return None,
+        })
     }
-}
-
-/// A button's hover fill: one step away from the page.
-///
-/// Wraps [`ColorPalette::step`] only to name the surface once — every button
-/// in tempera sits on `background`, and a variant that sits on a card or a
-/// popover would pass its own surface here instead.
-fn hover(base: Color, palette: &ColorPalette) -> Color {
-    ColorPalette::step(base, palette.background, 0.08)
-}
-
-/// A button's pressed fill: a **further** step in the same direction as
-/// [`hover`].
-///
-/// Press is only ever seen as a change *from* the hovered colour, because the
-/// pointer is already on the button — so what has to be visible is
-/// hover → pressed, not resting → pressed.
-///
-/// The obvious alternative is to reverse direction, which is what the old
-/// `lighten`-hover / `darken`-pressed pairing did. That reads well on a dark
-/// palette and breaks on a light one, in a way worth recording: reversing
-/// means moving *toward* the surface, and for a fill already close to it
-/// there is nowhere to go. `secondary` in the light theme is `(244,244,245)`
-/// on a `(255,255,255)` page — a reversed pressed step lands exactly on
-/// `(255,255,255)`, so pressing a secondary button would erase it. Stepping
-/// further away cannot do that, because the direction is the one chosen for
-/// having room in it.
-fn pressed(base: Color, palette: &ColorPalette) -> Color {
-    ColorPalette::step(base, palette.background, 0.14)
 }
 
 pub(crate) fn variant_visuals(variant: ButtonVariant, palette: &ColorPalette) -> VariantVisuals {
-    match variant {
-        ButtonVariant::Default => VariantVisuals {
-            bg_resting: palette.primary,
-            bg_hover: hover(palette.primary, palette),
-            bg_pressed: pressed(palette.primary, palette),
-            border_resting: Color::NONE,
-            border_width: 0.0,
-            fg_resting: palette.primary_foreground,
-        },
-        ButtonVariant::Secondary => VariantVisuals {
-            bg_resting: palette.secondary,
-            bg_hover: hover(palette.secondary, palette),
-            bg_pressed: pressed(palette.secondary, palette),
-            border_resting: Color::NONE,
-            border_width: 0.0,
-            fg_resting: palette.secondary_foreground,
-        },
-        ButtonVariant::Outline => VariantVisuals {
-            bg_resting: Color::NONE,
-            bg_hover: palette.muted,
-            bg_pressed: pressed(palette.muted, palette),
-            border_resting: palette.border,
-            border_width: 1.0,
-            fg_resting: palette.foreground,
-        },
-        ButtonVariant::Ghost => VariantVisuals {
-            bg_resting: Color::NONE,
-            bg_hover: palette.muted,
-            bg_pressed: pressed(palette.muted, palette),
-            border_resting: Color::NONE,
-            border_width: 0.0,
-            fg_resting: palette.foreground,
-        },
-        ButtonVariant::Bare => VariantVisuals {
+    let Some((surface, emphasis, reactivity)) = variant.grid() else {
+        // `Link`: text-only, no surface in any state, underlined on hover by
+        // the paint system rather than by a colour.
+        return VariantVisuals {
             bg_resting: Color::NONE,
             bg_hover: Color::NONE,
             bg_pressed: Color::NONE,
-            border_resting: Color::NONE,
-            border_width: 0.0,
-            fg_resting: palette.foreground,
-        },
-        ButtonVariant::Link => VariantVisuals {
-            bg_resting: Color::NONE,
-            bg_hover: Color::NONE,
-            bg_pressed: Color::NONE,
+            bg_selected: ColorPalette::step(palette.muted, palette.background, 0.04),
             border_resting: Color::NONE,
             border_width: 0.0,
             fg_resting: palette.primary,
-        },
-        ButtonVariant::Destructive => VariantVisuals {
-            bg_resting: palette.destructive,
-            bg_hover: hover(palette.destructive, palette),
-            bg_pressed: pressed(palette.destructive, palette),
-            border_resting: Color::NONE,
-            border_width: 0.0,
-            fg_resting: palette.destructive_foreground,
-        },
+        };
+    };
+
+    // Buttons sit on the page. A button hosted inside a card or a popover
+    // would pass that surface instead, which is the argument's whole point.
+    let v = visuals(surface, emphasis, reactivity, palette, palette.background);
+    VariantVisuals {
+        bg_resting: v.fill,
+        bg_hover: v.fill_hover,
+        bg_pressed: v.fill_pressed,
+        bg_selected: v.fill_selected,
+        border_resting: v.edge,
+        border_width: v.edge_width,
+        fg_resting: v.text,
     }
 }
 
 
+#[cfg(test)]
+mod recipe_tests {
+    use super::*;
+    use crate::theme::ColorPalette;
+
+    /// Every variant's resolved colours, before and after the grid refactor.
+    ///
+    /// The grid is a *re-expression*, not a redesign: it had to reproduce
+    /// what `variant_visuals` already returned, arm for arm, or it would be
+    /// smuggling a visual change into a structural PR. These are the values
+    /// the hand-written seven-arm match produced, transcribed at the point of
+    /// the rewrite.
+    ///
+    /// If a later change to `Surface`/`Emphasis` moves one of these, that is
+    /// a visual decision and belongs in its own reviewed change — this test
+    /// is what makes it impossible to make one by accident.
+    #[test]
+    fn the_grid_reproduces_every_variant_it_replaced() {
+        let p = ColorPalette::dark();
+        let case = |variant: ButtonVariant| {
+            let v = variant_visuals(variant, &p);
+            (v.bg_resting, v.bg_hover, v.bg_pressed, v.border_resting, v.border_width, v.fg_resting)
+        };
+
+        let step = |c: Color, a: f32| ColorPalette::step(c, p.background, a);
+
+        assert_eq!(
+            case(ButtonVariant::Default),
+            (p.primary, step(p.primary, 0.08), step(p.primary, 0.14), Color::NONE, 0.0, p.primary_foreground)
+        );
+        assert_eq!(
+            case(ButtonVariant::Secondary),
+            (p.secondary, step(p.secondary, 0.08), step(p.secondary, 0.14), Color::NONE, 0.0, p.secondary_foreground)
+        );
+        assert_eq!(
+            case(ButtonVariant::Destructive),
+            (p.destructive, step(p.destructive, 0.08), step(p.destructive, 0.14), Color::NONE, 0.0, p.destructive_foreground)
+        );
+        assert_eq!(
+            case(ButtonVariant::Outline),
+            (Color::NONE, p.muted, step(p.muted, 0.08), p.border, 1.0, p.foreground)
+        );
+        assert_eq!(
+            case(ButtonVariant::Ghost),
+            (Color::NONE, p.muted, step(p.muted, 0.08), Color::NONE, 0.0, p.foreground)
+        );
+        assert_eq!(
+            case(ButtonVariant::Bare),
+            (Color::NONE, Color::NONE, Color::NONE, Color::NONE, 0.0, p.foreground)
+        );
+        assert_eq!(
+            case(ButtonVariant::Link),
+            (Color::NONE, Color::NONE, Color::NONE, Color::NONE, 0.0, p.primary)
+        );
+    }
+}
