@@ -42,7 +42,6 @@ pub fn repaint_buttons(
 
         let (bg, border) = resting_or_state(
             &v,
-            &style.palette,
             state.interaction,
             state.pressed,
             state.disabled,
@@ -66,9 +65,12 @@ pub fn repaint_buttons(
 /// hover, then selection, then rest. Selection sits *below* hover so a
 /// selected button still lights up under the pointer — a selected control
 /// that stops responding reads as disabled.
+///
+/// Takes no palette: every colour a state can need is already resolved on
+/// [`VariantVisuals`]. It used to need one because the selected fill was
+/// computed here, on the spot, from `bg_resting`.
 fn resting_or_state(
     v: &VariantVisuals,
-    palette: &crate::theme::ColorPalette,
     interaction: &Interaction,
     pressed: bool,
     disabled: bool,
@@ -86,7 +88,7 @@ fn resting_or_state(
     match interaction {
         Interaction::Hovered => (v.bg_hover, v.border_resting),
         Interaction::Pressed => (v.bg_pressed, v.border_resting),
-        Interaction::None if selected => (v.bg_selected(palette), v.border_resting),
+        Interaction::None if selected => (v.bg_selected, v.border_resting),
         Interaction::None => (v.bg_resting, v.border_resting),
     }
 }
