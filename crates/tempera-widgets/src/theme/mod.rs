@@ -29,6 +29,14 @@ use bevy::ecs::query::QueryFilter;
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 
+mod base;
+mod config;
+mod scale;
+
+pub use base::{Base, Step};
+pub use config::{Density, Incoherent, Sizing, TextScale, ThemeConfig, Tokens};
+pub use scale::{ControlHeight, FontSize as TextSize, Gap, Radius, Scale};
+
 // ---------------------------------------------------------------------------
 // Plugin
 // ---------------------------------------------------------------------------
@@ -40,7 +48,9 @@ pub struct ThemePlugin;
 
 impl Plugin for ThemePlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<ColorPalette>()
+        app.init_resource::<ThemeConfig>()
+            .init_resource::<Tokens>()
+            .init_resource::<ColorPalette>()
             .init_resource::<Spacing>()
             .init_resource::<Typography>()
             .init_resource::<FontHandle>()
@@ -261,39 +271,82 @@ fn rgb(r: u8, g: u8, b: u8) -> Color {
 // Spacing scale (xxs..xxl + corner radii) — matches shadcn/Tailwind.
 // ---------------------------------------------------------------------------
 
+/// The spacing scale, as flat fields.
+///
+/// # These are cached, not authored
+///
+/// Every field here is [`Scale::at`] evaluated at a fixed [`Step`] — see
+/// [`Self::from_scale`], which is the definition and the only way the values
+/// are produced. They are fields rather than methods because ~17 call sites
+/// read them by name today; the generator is the source of truth and this is
+/// its cache.
+///
+/// **Do not assign to a field.** Setting `xs` without setting `sm` breaks the
+/// proportionality the scale exists to maintain, and nothing will report it.
+/// To change the spacing, change the [`Base`] and rebuild — that is what the
+/// generator is for. (The fields will become private once the call sites
+/// move to [`Scale::at`]; see PR 3 in the migration.)
 #[derive(Resource, Clone, Debug)]
 pub struct Spacing {
+    /// [`Step`] −2.
     pub xxs: f32,
+    /// [`Step`] 0 — the base itself.
     pub xs: f32,
+    /// [`Step`] 2.
     pub sm: f32,
+    /// [`Step`] 4.
     pub md: f32,
+    /// [`Step`] 5.
     pub lg: f32,
+    /// [`Step`] 6.
     pub xl: f32,
+    /// [`Step`] 7.
     pub xxl: f32,
 
+    /// [`Step`] −2.
     pub corner_radius_micro: f32,
+    /// [`Step`] 0.
     pub corner_radius_tiny: f32,
+    /// [`Step`] 1.
     pub corner_radius_small: f32,
+    /// [`Step`] 2.
     pub corner_radius: f32,
+    /// [`Step`] 3.
     pub corner_radius_large: f32,
+}
+
+impl Spacing {
+    /// Evaluate the scale at the steps the named tokens sit on.
+    ///
+    /// The step assignments are the *only* place the ladder is declared. At
+    /// the default base of 4 this reproduces the values tempera has always
+    /// shipped — 2/4/8/16/24/32/48 and radii 2/4/6/8/12 — which is the check
+    /// that the two-strand scale explains the existing design rather than
+    /// replacing it. `radius_small` at 6 is exactly the ×3/2 strand, which
+    /// is why that strand has to exist.
+    #[must_use]
+    pub fn from_scale(scale: Scale) -> Self {
+        let at = |n: i8| scale.at(Step::new(n)).get();
+        Self {
+            xxs: at(-2),
+            xs: at(0),
+            sm: at(2),
+            md: at(4),
+            lg: at(5),
+            xl: at(6),
+            xxl: at(7),
+            corner_radius_micro: at(-2),
+            corner_radius_tiny: at(0),
+            corner_radius_small: at(1),
+            corner_radius: at(2),
+            corner_radius_large: at(3),
+        }
+    }
 }
 
 impl Default for Spacing {
     fn default() -> Self {
-        Self {
-            xxs: 2.0,
-            xs: 4.0,
-            sm: 8.0,
-            md: 16.0,
-            lg: 24.0,
-            xl: 32.0,
-            xxl: 48.0,
-            corner_radius_micro: 2.0,
-            corner_radius_tiny: 4.0,
-            corner_radius_small: 6.0,
-            corner_radius: 8.0,
-            corner_radius_large: 12.0,
-        }
+        Self::from_scale(Scale::new(Base::default()))
     }
 }
 
@@ -301,6 +354,21 @@ impl Default for Spacing {
 // Typography scale (xxs..xxl).
 // ---------------------------------------------------------------------------
 
+/// The type ramp.
+///
+/// # Curated, not generated — and correctly so
+///
+/// Unlike [`Spacing`], these are not computed from a ratio, because type has
+/// to survive hinting, x-height and optical size, none of which a ratio
+/// models. Every major design system is algorithmic in spacing and hand-picked
+/// in type; this is not an inconsistency to fix later.
+///
+/// (Note also that the 4px grid is near-universally applied to *line-height*
+/// rather than to font-size. All 15 Material 3 line-heights divide by 4; the
+/// sizes — 57/45/22/14/11 — do not.)
+///
+/// What [`TextScale`] does is shift the whole ramp by a notch, preserving the
+/// hand-picked steps between its entries.
 #[derive(Resource, Clone, Debug)]
 pub struct Typography {
     pub xxs: f32,
@@ -312,15 +380,23 @@ pub struct Typography {
     pub xxl: f32,
 }
 
-impl Default for Typography {
-    fn default() -> Self {
+impl Typography {
+    /// The ramp at a given text scale.
+    ///
+    /// [`TextScale::Medium`] is the ladder tempera has always shipped. The
+    /// other two shift every entry by the same signed amount rather than
+    /// multiplying, because the gaps between these sizes were chosen by eye
+    /// at small sizes where a ratio would round badly (10 × 1.2 = 12, but
+    /// 8 × 1.2 = 9.6).
+    #[must_use]
+    pub fn from_scale(text: TextScale) -> Self {
         // Values match the rendered pixel height egui produces with
         // these same numeric tokens, so tempera widgets look identical
         // to armas widgets when both share a Theme. Bevy_text and
         // egui both interpret `font_size` as logical pixels, but
         // armas-basic uses the slightly smaller scale (sm=12 vs
         // shadcn's 13) — we follow armas to keep dawai parity.
-        Self {
+        let medium = Self {
             xxs: 8.0,
             xs: 10.0,
             sm: 12.0,
@@ -328,7 +404,27 @@ impl Default for Typography {
             lg: 16.0,
             xl: 18.0,
             xxl: 24.0,
+        };
+        let shift = match text {
+            TextScale::Small => -2.0,
+            TextScale::Medium => return medium,
+            TextScale::Large => 2.0,
+        };
+        Self {
+            xxs: medium.xxs + shift,
+            xs: medium.xs + shift,
+            sm: medium.sm + shift,
+            base: medium.base + shift,
+            lg: medium.lg + shift,
+            xl: medium.xl + shift,
+            xxl: medium.xxl + shift,
         }
+    }
+}
+
+impl Default for Typography {
+    fn default() -> Self {
+        Self::from_scale(TextScale::default())
     }
 }
 
@@ -357,6 +453,13 @@ pub struct MenuTokens {
 
 impl Default for MenuTokens {
     fn default() -> Self {
+        // Geometry is left as-is for now: `item_height` 26 and
+        // `item_padding_x` 10 are off the scale (26 is not a multiple of any
+        // scale member) and snapping them to it — 26 → 28, 10 → 8 — moves
+        // pixels on screen. That is a deliberately separate, visible change;
+        // this module is additive by design. `corner_radius` 6 *is* already
+        // the ×3/2 strand at step 1, and `border_width` is a hairline, which
+        // answers to the display rather than to the grid.
         Self {
             width: 220.0,
             item_height: 26.0,
@@ -470,4 +573,110 @@ pub fn repaint_needed_on<W: Component, F: QueryFilter + 'static>(
     touched: Query<(), Or<(Changed<Interaction>, Added<W>, F)>>,
 ) -> bool {
     palette.is_changed() || !touched.is_empty()
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_generated_spacing_reproduces_the_shipped_values() {
+        // The claim the whole model rests on: the two-strand scale from base
+        // 4 *explains* the ladder tempera already had, rather than replacing
+        // it. If this fails, either a step assignment in `from_scale` drifted
+        // or the generator did — and either way something on screen moved
+        // that this PR promised not to move.
+        let s = Spacing::default();
+        assert_eq!(
+            (s.xxs, s.xs, s.sm, s.md, s.lg, s.xl, s.xxl),
+            (2.0, 4.0, 8.0, 16.0, 24.0, 32.0, 48.0)
+        );
+        assert_eq!(
+            (
+                s.corner_radius_micro,
+                s.corner_radius_tiny,
+                s.corner_radius_small,
+                s.corner_radius,
+                s.corner_radius_large,
+            ),
+            (2.0, 4.0, 6.0, 8.0, 12.0)
+        );
+    }
+
+    #[test]
+    fn the_odd_radius_is_the_second_strand() {
+        // `corner_radius_small` is 6, which is not on the doubling strand at
+        // all — it is base × 3/2. It is the single clearest piece of evidence
+        // that the existing design was already two-stranded, and the reason
+        // a one-strand scale could not have been retrofitted here.
+        let scale = Scale::new(Base::FOUR);
+        assert_eq!(scale.at(Step::new(1)).get(), 6.0);
+        assert_eq!(Spacing::default().corner_radius_small, 6.0);
+    }
+
+    #[test]
+    fn a_coarser_base_scales_the_whole_ladder() {
+        // What the model buys: one input moves, everything follows in
+        // proportion, and nothing needs re-tuning by hand.
+        let s = Spacing::from_scale(Scale::new(Base::EIGHT));
+        let four = Spacing::default();
+        assert_eq!(s.xs, four.xs * 2.0);
+        assert_eq!(s.sm, four.sm * 2.0);
+        assert_eq!(s.md, four.md * 2.0);
+        assert_eq!(s.corner_radius_small, four.corner_radius_small * 2.0);
+    }
+
+    #[test]
+    fn the_default_typography_is_unchanged() {
+        let t = Typography::default();
+        assert_eq!(
+            (t.xxs, t.xs, t.sm, t.base, t.lg, t.xl, t.xxl),
+            (8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 24.0)
+        );
+    }
+
+    #[test]
+    fn the_text_scale_shifts_the_ramp_and_keeps_its_steps() {
+        // A shift, not a multiply — the gaps between these hand-picked sizes
+        // are the curation, so they have to survive the move.
+        let med = Typography::from_scale(TextScale::Medium);
+        let big = Typography::from_scale(TextScale::Large);
+        assert_eq!(big.base - med.base, 2.0);
+        assert_eq!(big.sm - med.sm, big.lg - med.lg);
+
+        let small = Typography::from_scale(TextScale::Small);
+        assert!(small.xxs > 0.0, "no entry may shift to zero or below");
+    }
+
+    #[test]
+    fn the_theme_plugin_installs_a_coherent_config() {
+        let mut app = App::new();
+        app.add_plugins(ThemePlugin);
+        let tokens = *app.world().resource::<Tokens>();
+        let config = *app.world().resource::<ThemeConfig>();
+        assert_eq!(tokens.config, config);
+        assert_eq!(
+            app.world().resource::<Spacing>().xs,
+            tokens.scale.at(Step::BASE).get()
+        );
+    }
+
+    #[test]
+    fn a_pre_inserted_config_survives_the_plugin() {
+        // `init_resource` is a no-op when the resource is present, which is
+        // what lets a host override the theme before adding the plugin. The
+        // whole point of a config resource is lost if the plugin stomps it.
+        let mut app = App::new();
+        let dense = ThemeConfig {
+            base: Base::EIGHT,
+            density: Density::Compact,
+            text: TextScale::Small,
+        };
+        app.insert_resource(dense).add_plugins(ThemePlugin);
+        assert_eq!(*app.world().resource::<ThemeConfig>(), dense);
+    }
 }
