@@ -213,6 +213,34 @@ pub(crate) struct VariantVisuals {
     pub fg_resting: Color,
 }
 
+impl VariantVisuals {
+    /// Fill for a selected-but-unhovered button.
+    ///
+    /// Derived rather than declared per variant, because "selected" is the
+    /// same visual idea everywhere and seven hand-picked colours would be
+    /// seven more numbers to keep in agreement.
+    ///
+    /// **It is deliberately not `bg_hover`.** The tempting definition is
+    /// "hold the state the hover would have shown", and it is wrong: for the
+    /// transparent variants `bg_hover` *is* `muted`, so a selected button
+    /// would already be sitting at its hovered colour and the pointer would
+    /// produce no change at all. A selected control that stops reacting reads
+    /// as a disabled one. Hence a distinct step, below hover, that hover can
+    /// still lift away from.
+    ///
+    /// A variant with no surface to lift — `Bare`, `Link` — starts from
+    /// `muted` instead: those exist to be invisible, but a *selected* one
+    /// still has to be distinguishable from its neighbours.
+    pub(crate) fn bg_selected(&self, palette: &ColorPalette) -> Color {
+        let base = if self.bg_resting == Color::NONE {
+            palette.muted
+        } else {
+            self.bg_resting
+        };
+        ColorPalette::hover_lift(base, 0.04)
+    }
+}
+
 pub(crate) fn variant_visuals(variant: ButtonVariant, palette: &ColorPalette) -> VariantVisuals {
     match variant {
         ButtonVariant::Default => VariantVisuals {
