@@ -34,7 +34,8 @@ impl Plugin for TemperaDockPlugin {
         // pane holds pages, so an app with none pays nothing.
         app.init_resource::<PaneRegistry>()
             .init_resource::<RebuildRequested>()
-            .init_resource::<DividerStyle>();
+            .init_resource::<DividerStyle>()
+            .init_resource::<crate::window_chrome::WindowChromeInset>();
 
         // A host that inserts its own layout wins; this is only so the dock is
         // never in a state with no tree at all.
@@ -49,6 +50,13 @@ impl Plugin for TemperaDockPlugin {
             .add_systems(
                 Update,
                 (apply_visibility, apply_active_page).after(DockBuildSet),
+            )
+            // Before the build: a host positioning its first title-bar
+            // control reads the inset during layout, so it has to be current
+            // by then.
+            .add_systems(
+                Update,
+                crate::window_chrome::sync_window_inset.before(DockBuildSet),
             );
     }
 }
