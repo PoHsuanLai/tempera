@@ -37,6 +37,31 @@ impl IconTint {
     }
 }
 
+/// The button is the currently-chosen one of a set.
+///
+/// # Why a marker rather than two colours
+///
+/// A toolbar tab, a mode chip and a tool picker all need "this is the active
+/// one", and the obvious shortcut is to let the caller write the resting and
+/// hover colours directly. That shortcut is what this exists to prevent.
+///
+/// Colours written by application logic have to be *re-written* every time
+/// the state changes, which means a styling component becomes something a
+/// system mutates each frame, and `BackgroundColor` ends up with two owners —
+/// the repaint system and whatever loop is asserting the selection. Which one
+/// wins then depends on ordering.
+///
+/// So selection is declared and the colours are resolved, exactly as
+/// [`crate::tabs`] already does with `TabsActive`. Insert this to select,
+/// remove it to deselect; nothing else writes a `Color`.
+///
+/// A selected button paints one step up from its variant's resting fill:
+/// `muted` for the transparent variants, a hover-lift for the filled ones.
+/// The hover state stays *above* the selected state, so a selected button
+/// still responds to the pointer.
+#[derive(Component, Clone, Copy, Default, Debug)]
+pub struct Selected;
+
 /// Visual variant of a button. Maps to a color recipe applied by the
 /// paint system using the [`crate::ColorPalette`] resource.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq)]

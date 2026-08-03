@@ -44,8 +44,8 @@ mod spawn;
 mod systems;
 
 pub use bevy::ui_widgets::{Activate, Button};
-pub use components::{ButtonSize, ButtonVariant, IconTint, TemperaButton};
-pub use spawn::{spawn_button, spawn_button_sized, ButtonContent, ButtonStyle};
+pub use components::{ButtonSize, ButtonVariant, IconTint, Selected, TemperaButton};
+pub use spawn::{ButtonContent, ButtonStyle, spawn_button, spawn_button_sized};
 
 pub struct ButtonStylePlugin;
 

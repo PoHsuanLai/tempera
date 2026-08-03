@@ -68,7 +68,7 @@ pub mod prelude {
     pub use crate::TemperaPlugin;
     pub use crate::button::{
         Activate, Button, ButtonContent, ButtonSize, ButtonStyle, ButtonStylePlugin, ButtonVariant,
-        IconTint, TemperaButton, spawn_button, spawn_button_sized,
+        IconTint, Selected, TemperaButton, spawn_button, spawn_button_sized,
     };
     pub use crate::checkbox::{
         CheckGlyph, Checkbox, CheckboxStyle, CheckboxStylePlugin, Checked, TemperaCheckbox,
