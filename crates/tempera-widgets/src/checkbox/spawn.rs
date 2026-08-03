@@ -4,7 +4,7 @@ use bevy::ui_widgets::Checkbox;
 
 use super::components::{CheckGlyph, TemperaCheckbox};
 use crate::anim::Spring;
-use crate::theme::{ColorPalette, FontHandle, Metrics, Step, Typography};
+use crate::theme::{ColorPalette, FontHandle, Metrics, Step, StyledNode, Typography};
 
 /// The box's edge, in logical pixels.
 ///
@@ -25,22 +25,18 @@ pub struct CheckboxStyle<'w> {
 /// owner). Observe `ValueChange<bool>` on it to react to flips.
 pub fn spawn_checkbox(commands: &mut Commands, style: &CheckboxStyle, checked: bool) -> Entity {
     let initial_t = if checked { 1.0 } else { 0.0 };
-    // Step 4 and step 0 on the spacing scale — 16 and 4 at the default base,
-    // which is what these were written as before the scale could name them.
-    let box_size = style.metrics.gap(Step::new(4)).get();
-    let corner = style.metrics.radius(Step::BASE).get();
     let mut root = commands.spawn((
         Checkbox,
+        // Steps 4 and 0 — 16 and 4 at the default base. Declared rather than
+        // computed, so a checkbox already on screen follows a base change.
+        StyledNode::new().square(Step::new(4)).radius(Step::BASE),
         TemperaCheckbox,
         // Spring drives the check glyph's scale (0 = hidden, 1 = full
         // size). armas's checkbox spring is firmer than the switch's
         // so the checkmark pops in crisply rather than easing.
         Spring::new(initial_t, initial_t).params(2000.0, 55.0),
         Node {
-            width: Val::Px(box_size),
-            height: Val::Px(box_size),
             border: UiRect::all(Val::Px(BORDER)),
-            border_radius: BorderRadius::all(Val::Px(corner)),
             align_items: AlignItems::Center,
             justify_content: JustifyContent::Center,
             ..default()

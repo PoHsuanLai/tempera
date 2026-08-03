@@ -47,7 +47,7 @@ pub use components::{
     Toast, ToastCreated, ToastDismissible, ToastDuration, ToastExternalProgress, ToastMessage,
     ToastNodes, ToastPosition, ToastShowProgress, ToastSlide, ToastTitle, ToastVariant,
 };
-pub use spawn::{spawn, spawn_error, ToastSpec};
+pub use spawn::{ToastSpec, spawn, spawn_error};
 
 /// Toast-stack configuration. Mutate to change where toasts anchor,
 /// how wide they render, or the max-on-screen ceiling.

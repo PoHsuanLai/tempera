@@ -31,7 +31,6 @@
 use bevy::prelude::*;
 
 mod components;
-mod metrics;
 mod spawn;
 mod systems;
 
@@ -54,11 +53,7 @@ impl Plugin for CardPlugin {
         }
         app.init_resource::<CardTokens>().add_systems(
             Update,
-            (
-                metrics::apply_card_metrics.run_if(crate::theme::relayout_needed::<Card>),
-                systems::apply_card_body,
-                systems::apply_card_chevron,
-            ),
+            (systems::apply_card_body, systems::apply_card_chevron),
         );
     }
 }
@@ -75,11 +70,7 @@ mod tests {
             .init_resource::<Assets<Image>>()
             .add_systems(
                 Update,
-                (
-                    metrics::apply_card_metrics.run_if(crate::theme::relayout_needed::<Card>),
-                    systems::apply_card_body,
-                    systems::apply_card_chevron,
-                ),
+                (systems::apply_card_body, systems::apply_card_chevron),
             );
         app
     }
@@ -318,9 +309,10 @@ mod tests {
         spawn(&mut app, CardState::Expanded);
         app.update();
 
-        // Re-insert an identical `Tokens`. That fires `relayout_needed`, so
-        // the system genuinely re-runs — but every value it computes is the
-        // same, so compare-before-write should leave every `Node` alone.
+        // Re-insert an identical `Tokens`. `apply_styled_nodes` sees the
+        // resource change and genuinely re-runs — but every value it
+        // computes is the same, so compare-before-write should leave every
+        // `Node` alone.
         //
         // Counted from *inside* the schedule, immediately after the system:
         // change ticks advance between frames, so reading `is_changed` from
@@ -333,7 +325,7 @@ mod tests {
         }
 
         app.init_resource::<Dirtied>()
-            .add_systems(Update, count_dirty.after(metrics::apply_card_metrics));
+            .add_systems(Update, count_dirty.after(crate::theme::apply_styled_nodes));
         app.update();
         app.world_mut().resource_mut::<Dirtied>().0 = 0;
 

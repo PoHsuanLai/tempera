@@ -6,10 +6,10 @@
 //! `Checked` marker on `ValueChange<bool>`). Splitting this out keeps
 //! the per-widget plugins free of duplicate registrations.
 
-use bevy::input_focus::tab_navigation::TabNavigationPlugin;
 use bevy::input_focus::InputDispatchPlugin;
+use bevy::input_focus::tab_navigation::TabNavigationPlugin;
 use bevy::prelude::*;
-use bevy::ui_widgets::{checkbox_self_update, CheckboxPlugin as BevyCheckboxPlugin};
+use bevy::ui_widgets::{CheckboxPlugin as BevyCheckboxPlugin, checkbox_self_update};
 
 pub struct CheckboxBehaviorPlugin;
 

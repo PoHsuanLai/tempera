@@ -5,7 +5,7 @@ use super::components::{
     ListRow, ListRowBadge, ListRowId, ListRowLead, ListRowMeta, ListRowSubtitle, ListRowTitle,
     ListRowTrail,
 };
-use crate::theme::{ColorPalette, FontHandle, Spacing, Typography};
+use crate::theme::{Base, ColorPalette, FontHandle, Scale, Spacing, Step, Typography};
 
 /// Row metrics.
 ///
@@ -39,13 +39,34 @@ pub struct ListRowTokens {
 
 impl Default for ListRowTokens {
     fn default() -> Self {
+        Self::from_scale(Scale::new(Base::default()))
+    }
+}
+
+impl ListRowTokens {
+    /// The defaults, generated from a spacing scale.
+    ///
+    /// These were six literals, five of which are exact scale members —
+    /// 24, 8, 12, 16 and 2 are steps 5, 2, 3, 4 and −2. Naming the steps
+    /// makes the ladder visible and means a host that coarsens the base
+    /// gets a proportional row rather than one that ignores it.
+    ///
+    /// It stays a `Resource` with public fields: overriding these is how a
+    /// host tunes a row for its own panel, and a generated default is not a
+    /// reason to take that away. This is the *starting point*, not a lock.
+    #[must_use]
+    pub fn from_scale(scale: Scale) -> Self {
+        let at = |n: i8| scale.at(Step::new(n)).get();
         Self {
-            padding_x: 24.0,
-            padding_y: 8.0,
-            row_gap: 12.0,
-            column_gap: 16.0,
+            padding_x: at(5),
+            padding_y: at(2),
+            row_gap: at(3),
+            column_gap: at(4),
+            // A content measure, not a grid value: how much room a trailing
+            // widget needs before the title starts truncating. No scale
+            // predicts that.
             trail_min_width: 80.0,
-            corner_radius: 2.0,
+            corner_radius: at(-2),
             subtitle_max_chars: Some(60),
         }
     }

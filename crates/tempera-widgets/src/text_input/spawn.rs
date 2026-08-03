@@ -8,7 +8,9 @@ use bevy_ui_text_input::{
 };
 
 use super::components::TextInput;
-use crate::theme::{ColorPalette, ControlSize, FontHandle, Metrics, Spacing, Typography};
+use crate::theme::{
+    ColorPalette, ControlSize, FontHandle, Metrics, Spacing, Step, StyledNode, Typography,
+};
 
 /// The height an input used to declare for itself, kept as a reference
 /// value.
@@ -131,11 +133,12 @@ fn spawn_text_input_inner(
     let surround = commands
         .spawn((
             TextInput,
+            StyledNode::new()
+                .height(ControlSize::Md)
+                .radius(Step::new(1)),
             Node {
                 width: Val::Px(DEFAULT_WIDTH),
-                height: style.metrics.control(ControlSize::Md).into(),
                 border: UiRect::all(Val::Px(1.0)),
-                border_radius: BorderRadius::all(Val::Px(style.spacing.corner_radius_small)),
                 padding: UiRect::horizontal(Val::Px(10.0)),
                 align_items: AlignItems::Center,
                 column_gap: if has_icon {

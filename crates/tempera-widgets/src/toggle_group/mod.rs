@@ -30,7 +30,7 @@ mod systems;
 pub use bevy::ui::Checked;
 pub use bevy::ui_widgets::{RadioButton, RadioGroup, ValueChange};
 pub use components::{ToggleGroup, ToggleGroupKind, ToggleItem};
-pub use spawn::{spawn_toggle_group, ToggleGroupItem, ToggleGroupStyle};
+pub use spawn::{ToggleGroupItem, ToggleGroupStyle, spawn_toggle_group};
 
 pub struct ToggleGroupStylePlugin;
 

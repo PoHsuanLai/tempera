@@ -34,8 +34,8 @@ use std::time::Duration;
 use bevy::prelude::*;
 
 use super::components::{
-    Toast, ToastDismissible, ToastDuration, ToastExternalProgress, ToastMessage,
-    ToastShowProgress, ToastSlide, ToastTitle, ToastVariant,
+    Toast, ToastDismissible, ToastDuration, ToastExternalProgress, ToastMessage, ToastShowProgress,
+    ToastSlide, ToastTitle, ToastVariant,
 };
 
 /// Builder for a toast entity. Spawn with [`ToastSpec::spawn`].

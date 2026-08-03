@@ -30,14 +30,8 @@ pub fn spawn_separator(
     length: Option<f32>,
 ) -> Entity {
     let (w, h) = match axis {
-        SeparatorAxis::Horizontal => (
-            length.map_or(Val::Percent(100.0), Val::Px),
-            Val::Px(1.0),
-        ),
-        SeparatorAxis::Vertical => (
-            Val::Px(1.0),
-            length.map_or(Val::Percent(100.0), Val::Px),
-        ),
+        SeparatorAxis::Horizontal => (length.map_or(Val::Percent(100.0), Val::Px), Val::Px(1.0)),
+        SeparatorAxis::Vertical => (Val::Px(1.0), length.map_or(Val::Percent(100.0), Val::Px)),
     };
     commands
         .spawn((
