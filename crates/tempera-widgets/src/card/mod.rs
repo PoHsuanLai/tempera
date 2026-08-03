@@ -31,6 +31,7 @@
 use bevy::prelude::*;
 
 mod components;
+mod metrics;
 mod spawn;
 mod systems;
 
@@ -53,7 +54,11 @@ impl Plugin for CardPlugin {
         }
         app.init_resource::<CardTokens>().add_systems(
             Update,
-            (systems::apply_card_body, systems::apply_card_chevron),
+            (
+                metrics::apply_card_metrics.run_if(crate::theme::relayout_needed::<Card>),
+                systems::apply_card_body,
+                systems::apply_card_chevron,
+            ),
         );
     }
 }
@@ -70,7 +75,11 @@ mod tests {
             .init_resource::<Assets<Image>>()
             .add_systems(
                 Update,
-                (systems::apply_card_body, systems::apply_card_chevron),
+                (
+                    metrics::apply_card_metrics.run_if(crate::theme::relayout_needed::<Card>),
+                    systems::apply_card_body,
+                    systems::apply_card_chevron,
+                ),
             );
         app
     }
@@ -261,6 +270,81 @@ mod tests {
         assert_eq!(
             app.world().get::<ImageNode>(chevron).unwrap().color,
             recoloured
+        );
+    }
+
+    #[test]
+    fn a_card_already_on_screen_follows_a_density_change() {
+        // The property the whole move exists for. Geometry read once inside
+        // `spawn_card` reached only cards spawned *after* a theme change;
+        // every card already on screen kept the size it was born with. That
+        // is invisible until something actually changes the theme, which is
+        // why it survived until scenes forced the question.
+        let mut app = test_app();
+        let parts = spawn(&mut app, CardState::Expanded);
+        app.update();
+
+        let header = app.world().get::<Children>(parts.card).unwrap()[0];
+        let before = app.world().get::<Node>(header).unwrap().height;
+
+        let spacious = crate::theme::ThemeConfig {
+            density: crate::theme::Density::Spacious,
+            ..default()
+        };
+        app.insert_resource(spacious)
+            .insert_resource(spacious.build().expect("spacious is coherent"));
+        app.update();
+
+        let after = app.world().get::<Node>(header).unwrap().height;
+        assert_ne!(before, after, "a live card must follow the density");
+        assert_eq!(
+            after,
+            Val::Px(spacious.build().unwrap().sizing.control_sm.get())
+        );
+    }
+
+    #[test]
+    fn an_idle_frame_leaves_a_card_untouched() {
+        // Two guards stand between an idle frame and a wasted taffy upload:
+        // the run condition stops the system, and compare-before-write stops
+        // the `DerefMut`. This covers the *second*, by re-running the system
+        // deliberately — touching the config makes the condition fire, but
+        // the values it computes are identical, so nothing should move.
+        //
+        // (`bevy_ui` gates its upload on `Ref<Node>::is_changed()`, and a
+        // `DerefMut` sets that flag whether or not the value actually
+        // changed.)
+        let mut app = test_app();
+        spawn(&mut app, CardState::Expanded);
+        app.update();
+
+        // Re-insert an identical `Tokens`. That fires `relayout_needed`, so
+        // the system genuinely re-runs — but every value it computes is the
+        // same, so compare-before-write should leave every `Node` alone.
+        //
+        // Counted from *inside* the schedule, immediately after the system:
+        // change ticks advance between frames, so reading `is_changed` from
+        // outside `app.update()` reports nothing regardless.
+        #[derive(Resource, Default)]
+        struct Dirtied(usize);
+
+        fn count_dirty(mut d: ResMut<Dirtied>, nodes: Query<Ref<Node>>) {
+            d.0 += nodes.iter().filter(|n| n.is_changed()).count();
+        }
+
+        app.init_resource::<Dirtied>()
+            .add_systems(Update, count_dirty.after(metrics::apply_card_metrics));
+        app.update();
+        app.world_mut().resource_mut::<Dirtied>().0 = 0;
+
+        let same = *app.world().resource::<crate::theme::Tokens>();
+        app.insert_resource(same);
+        app.update();
+
+        let touched = app.world().resource::<Dirtied>().0;
+        assert_eq!(
+            touched, 0,
+            "a no-op recompute dirtied {touched} nodes, forcing a taffy upload"
         );
     }
 }

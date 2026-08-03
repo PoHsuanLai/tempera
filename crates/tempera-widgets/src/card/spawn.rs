@@ -5,7 +5,7 @@ use bevy::picking::events::{Click, Pointer};
 use bevy::prelude::*;
 
 use super::components::{Card, CardBody, CardChevron, CardExpanded, CardHeader, CardState};
-use crate::theme::{ColorPalette, ControlSize, FontHandle, Metrics, Step, Typography};
+use crate::theme::{ColorPalette, FontHandle, Typography};
 
 /// Sizing and art for [`Card`]s.
 #[derive(Resource, Clone, Debug, Default)]
@@ -16,13 +16,16 @@ pub struct CardTokens {
     pub chevron_collapsed: Option<Handle<Image>>,
 }
 
-/// The slice of theme tokens a card reads.
+/// The slice of theme tokens a card reads *at spawn*.
+///
+/// Colour and type only — geometry is applied by `apply_card_metrics` and
+/// deliberately absent here. If a `Metrics` reappears in this bundle, some
+/// size has drifted back into the spawn path.
 #[derive(SystemParam)]
 pub struct CardStyle<'w> {
     pub palette: Res<'w, ColorPalette>,
     pub typography: Res<'w, Typography>,
     pub font: Res<'w, FontHandle>,
-    pub metrics: Metrics<'w>,
 }
 
 /// The two entities a caller needs after spawning.
@@ -52,15 +55,17 @@ pub fn spawn_card(
     title: impl Into<String>,
     state: CardState,
 ) -> CardParts {
-    let gutter = style.metrics.gap(Step::new(2)).get();
+    // Only *structure* here — flex direction, 100% widths, the parent link.
+    // Every theme-derived value (padding, radius, header height, chevron
+    // box, body gap) is applied by `apply_card_metrics`, so a card that is
+    // already on screen follows a density or base change instead of keeping
+    // the geometry it was born with.
     let card = commands
         .spawn((
             Card,
             Node {
                 width: Val::Percent(100.0),
                 flex_direction: FlexDirection::Column,
-                padding: UiRect::axes(Val::Px(gutter), style.metrics.gap(Step::BASE).into()),
-                border_radius: BorderRadius::all(style.metrics.radius(Step::new(1)).into()),
                 ..default()
             },
             // `card` rather than `background`: a card sits *on* the surface
@@ -80,7 +85,6 @@ pub fn spawn_card(
             CardHeader,
             Node {
                 width: Val::Percent(100.0),
-                height: style.metrics.control(ControlSize::Sm).into(),
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::SpaceBetween,
@@ -115,14 +119,9 @@ pub fn spawn_card(
     // and it may not be loaded yet. Reserving the box here keeps the title
     // from shifting when the handle arrives — the same reason `tree_row`
     // reserves its chevron slot.
-    let chevron_box = style.metrics.gap(Step::new(3)).get();
     commands.spawn((
         CardChevron(card),
-        Node {
-            width: Val::Px(chevron_box),
-            height: Val::Px(chevron_box),
-            ..default()
-        },
+        Node::default(),
         bevy::picking::Pickable::IGNORE,
         ChildOf(header),
     ));
@@ -133,7 +132,6 @@ pub fn spawn_card(
             Node {
                 width: Val::Percent(100.0),
                 flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(gutter),
                 display: if state.is_expanded() {
                     Display::Flex
                 } else {

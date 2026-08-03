@@ -477,6 +477,26 @@ pub fn palette_changed(palette: Res<ColorPalette>) -> bool {
     palette.is_changed()
 }
 
+/// Run condition for a widget's *geometry* system: something it lays out
+/// from moved, or one of it was just spawned.
+///
+/// The geometry counterpart to [`repaint_needed`], and it exists for the
+/// same reason one layer down. Sizes used to be read once inside a spawn
+/// function and baked into a `Node`, so a density or base change reached
+/// only widgets spawned *after* it — every widget already on screen kept
+/// the geometry it was born with.
+///
+/// `W` is the widget's root marker, so a freshly spawned one gets its
+/// geometry on the frame it appears rather than waiting for a token change
+/// that may never come.
+pub fn relayout_needed<W: Component>(
+    tokens: Res<Tokens>,
+    spacing: Res<Spacing>,
+    fresh: Query<(), Added<W>>,
+) -> bool {
+    tokens.is_changed() || spacing.is_changed() || !fresh.is_empty()
+}
+
 /// Run condition for a widget's repaint system: something it paints from
 /// moved.
 ///
