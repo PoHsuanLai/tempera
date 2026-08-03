@@ -174,7 +174,7 @@ pub fn spawn_dialog(
                 height: Val::Percent(100.0),
                 ..default()
             },
-            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.55)),
+            BackgroundColor(style.palette.scrim),
             ChildOf(root),
             Name::new("tempera::dialog::backdrop"),
         ))
@@ -323,5 +323,45 @@ pub fn spawn_dialog(
         card,
         close_button,
         content,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::theme::ThemePlugin;
+    use bevy::ecs::system::SystemState;
+
+    /// The backdrop reads the palette's scrim rather than a colour of its own.
+    ///
+    /// The first dialog test. Without it the token could be correct and
+    /// unused: reverting the call site to the hardcoded black it replaced
+    /// would leave every other test in the workspace green, because nothing
+    /// else looks at what a backdrop is painted.
+    ///
+    /// Asserted against the *light* palette specifically. The dark value is
+    /// the one the call site used to hardcode, so a stale literal would still
+    /// match there — light is where a hardcoded colour and the token disagree.
+    #[test]
+    fn the_backdrop_is_painted_from_the_palette() {
+        let mut app = App::new();
+        app.add_plugins(ThemePlugin)
+            .insert_resource(ColorPalette::light());
+
+        let world = app.world_mut();
+        let mut state: SystemState<(Commands, DialogStyle)> = SystemState::new(world);
+        let backdrop = {
+            let (mut commands, style) = state.get(world).expect("theme resources present");
+            spawn_dialog(&mut commands, &style, DialogConfig::default()).backdrop
+        };
+        state.apply(world);
+
+        let painted = world.get::<BackgroundColor>(backdrop).unwrap().0;
+        let want = world.resource::<ColorPalette>().scrim;
+        assert_eq!(
+            painted.to_srgba(),
+            want.to_srgba(),
+            "the backdrop is not reading ColorPalette::scrim"
+        );
     }
 }

@@ -43,8 +43,6 @@ pub struct MenuTokens {
     pub item_active_bg: Color,
     /// 1px line between item groups.
     pub separator: Color,
-    /// Drop shadow color (alpha-encoded).
-    pub shadow: Color,
 }
 
 impl Default for MenuTokens {
@@ -65,7 +63,6 @@ impl Default for MenuTokens {
             item_hover_bg: Color::srgba(1.0, 1.0, 1.0, 0.06),
             item_active_bg: Color::srgba(1.0, 1.0, 1.0, 0.10),
             separator: Color::srgba(1.0, 1.0, 1.0, 0.08),
-            shadow: Color::srgba(0.0, 0.0, 0.0, 0.45),
         }
     }
 }

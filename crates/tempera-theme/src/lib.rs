@@ -205,6 +205,21 @@ pub struct ColorPalette {
     // States
     pub hover: Color,
     pub focus: Color,
+
+    /// What covers the page while a modal owns it.
+    ///
+    /// The only token here that is *not* a surface: every other colour above
+    /// answers "what is this thing painted", and this one answers "how much
+    /// of what is behind it still shows". It is stored alpha-encoded, so a
+    /// consumer paints it directly rather than compositing.
+    ///
+    /// It is a token because it was two hardcoded blacks — `dialog`'s
+    /// backdrop at 55% and a never-read `MenuTokens::shadow` at 45% — and a
+    /// consumer with its own modal had nothing to read. A scrim is also the
+    /// one colour a *light* theme has a real argument about: dimming toward
+    /// black is right for both here, but that is a decision the palette
+    /// should be allowed to make, and hardcoding it took the choice away.
+    pub scrim: Color,
 }
 
 impl ColorPalette {
@@ -241,6 +256,9 @@ impl ColorPalette {
 
             hover: rgb(39, 39, 42),
             focus: rgb(250, 250, 250),
+
+            // The value `dialog` hardcoded, moved rather than retuned.
+            scrim: Color::srgba(0.0, 0.0, 0.0, 0.55),
         }
     }
 
@@ -273,6 +291,12 @@ impl ColorPalette {
 
             hover: rgb(244, 244, 245),
             focus: rgb(24, 24, 27),
+
+            // Also black, and less of it. A scrim reads as "the page went
+            // away", which is a bigger contrast step down from white than
+            // from near-black — 0.55 over a light page is oppressive where
+            // the same value over a dark one is barely a veil.
+            scrim: Color::srgba(0.0, 0.0, 0.0, 0.32),
         }
     }
 }
@@ -572,6 +596,57 @@ mod tests {
         assert_eq!(s.sm, four.sm * 2.0);
         assert_eq!(s.md, four.md * 2.0);
         assert_eq!(s.corner_radius_small, four.corner_radius_small * 2.0);
+    }
+
+    /// A scrim has to actually obscure, in both themes.
+    ///
+    /// Two failure modes, and a scrim token makes both expressible where two
+    /// hardcoded blacks did not. Fully transparent is a modal you can click
+    /// straight through visually; fully opaque destroys the context a modal
+    /// is supposed to sit *over*, which is the whole reason it is a scrim and
+    /// not a page.
+    #[test]
+    fn a_scrim_obscures_without_erasing() {
+        for palette in [ColorPalette::dark(), ColorPalette::light()] {
+            let a = palette.scrim.to_srgba().alpha;
+            assert!(
+                a > 0.15,
+                "a scrim at alpha {a} does not read as a dimmed page"
+            );
+            assert!(
+                a < 0.95,
+                "a scrim at alpha {a} hides the context the modal sits over"
+            );
+        }
+    }
+
+    /// The light theme dims less than the dark one.
+    ///
+    /// Not symmetry for its own sake: the same black veil is a bigger
+    /// perceptual step down from a white page than from a near-black one, so
+    /// matching the numbers would make the light theme's modal oppressive.
+    /// This is the decision the two hardcoded blacks could not express, and
+    /// the reason a scrim belongs in the palette rather than at a call site.
+    #[test]
+    fn the_light_theme_needs_a_lighter_hand() {
+        let dark = ColorPalette::dark().scrim.to_srgba().alpha;
+        let light = ColorPalette::light().scrim.to_srgba().alpha;
+        assert!(
+            light < dark,
+            "light scrim {light} is not lighter than dark {dark}"
+        );
+    }
+
+    /// The dark theme's scrim is the value `dialog` hardcoded.
+    ///
+    /// Pinned so the move is provably a move. Retuning it is a visual change
+    /// and belongs in its own reviewed diff.
+    #[test]
+    fn the_dark_scrim_is_the_value_it_replaced() {
+        assert_eq!(
+            ColorPalette::dark().scrim.to_srgba(),
+            Color::srgba(0.0, 0.0, 0.0, 0.55).to_srgba()
+        );
     }
 
     #[test]
