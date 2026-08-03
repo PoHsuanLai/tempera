@@ -7,7 +7,7 @@ use super::components::{
 };
 use crate::button::{ButtonContent, ButtonSize, ButtonStyle, ButtonVariant, spawn_button};
 use crate::text_input::{TextInputFilter, TextInputStyle, spawn_text_input};
-use crate::theme::Spacing;
+use crate::theme::{ControlSize, Spacing, Step, StyledNode};
 
 #[derive(SystemParam)]
 pub struct NumberFieldStyle<'w> {
@@ -60,13 +60,21 @@ pub fn spawn_number_field(
     commands
         .entity(handle.inner)
         .insert(TextInputFilter::Decimal);
+    // Overriding the text input's own declaration, not adding to it: a
+    // number field is narrower and shorter than a bare input, so it
+    // re-declares the two theme-derived values it wants different and lets
+    // the rest stand. Writing a whole `Node` here — as this used to — also
+    // clobbered the input's structural fields, and the width was a bare 80.
     commands.entity(handle.surround).insert((
+        StyledNode::new()
+            .height(ControlSize::Sm)
+            .padding_x(Step::new(2))
+            .radius(Step::new(1)),
         Node {
+            // A content measure: how wide a numeric field needs to be for
+            // the digits it holds. No scale predicts that.
             width: Val::Px(80.0),
-            height: Val::Px(28.0),
             border: UiRect::all(Val::Px(1.0)),
-            border_radius: BorderRadius::all(Val::Px(style.spacing.corner_radius_small)),
-            padding: UiRect::horizontal(Val::Px(8.0)),
             align_items: AlignItems::Center,
             ..default()
         },

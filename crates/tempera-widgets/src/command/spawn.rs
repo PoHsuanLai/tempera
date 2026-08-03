@@ -107,7 +107,7 @@ pub fn spawn_command_with_icon(
                 flex_direction: FlexDirection::Column,
                 max_height: Val::Px(PALETTE_MAX_LIST_HEIGHT),
                 overflow: Overflow::scroll_y(),
-                padding: UiRect::vertical(Val::Px(4.0)),
+                padding: UiRect::vertical(style.text_input.metrics.gap(Step::BASE).into()),
                 ..default()
             },
             BackgroundColor(Color::NONE),
@@ -141,7 +141,7 @@ fn spawn_input_row(
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
                 column_gap: Val::Px(style.spacing.xs),
-                padding: UiRect::horizontal(Val::Px(12.0)),
+                padding: UiRect::horizontal(style.text_input.metrics.gap(Step::new(3)).into()),
                 border: UiRect::bottom(Val::Px(1.0)),
                 ..default()
             },
@@ -159,8 +159,8 @@ fn spawn_input_row(
         commands.spawn((
             ImageNode::new(handle).with_color(style.palette.muted_foreground),
             Node {
-                width: Val::Px(16.0),
-                height: Val::Px(16.0),
+                width: style.text_input.metrics.gap(Step::new(4)).into(),
+                height: style.text_input.metrics.gap(Step::new(4)).into(),
                 ..default()
             },
             ChildOf(row),
@@ -202,7 +202,7 @@ fn spawn_empty_placeholder(
                 // Hidden by default — filter system flips this on when
                 // no items match.
                 display: Display::None,
-                padding: UiRect::vertical(Val::Px(24.0)),
+                padding: UiRect::vertical(style.text_input.metrics.gap(Step::new(5)).into()),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
                 ..default()
@@ -252,7 +252,10 @@ fn spawn_section(
         .spawn((
             CommandGroupHeading,
             Node {
-                padding: UiRect::axes(Val::Px(4.0), Val::Px(6.0)),
+                padding: UiRect::axes(
+                    style.text_input.metrics.gap(Step::BASE).into(),
+                    style.text_input.metrics.gap(Step::new(1)).into(),
+                ),
                 ..default()
             },
             BackgroundColor(Color::NONE),
@@ -290,7 +293,7 @@ fn spawn_item(
                 height: style.text_input.metrics.control(ControlSize::Md).into(),
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
-                padding: UiRect::horizontal(Val::Px(8.0)),
+                padding: UiRect::horizontal(style.text_input.metrics.gap(Step::new(2)).into()),
                 column_gap: Val::Px(style.spacing.xs),
                 border_radius: BorderRadius::all(Val::Px(style.spacing.corner_radius_small)),
                 ..default()
