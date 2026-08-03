@@ -250,12 +250,21 @@ pub fn spawn_dialog(
                 .spawn((
                     DialogClose,
                     Button,
+                    // Step 0 — 4 at the default base. *Not* the card's
+                    // radius run through `concentric_inner`, which is what
+                    // the design doc names as the example for that rule.
+                    // Checked, and it does not apply: the button is centred
+                    // in the title bar, not nested in the card's corner, so
+                    // there is no offset relating the two. Feeding it the
+                    // title padding gives `max(0, 12 - 16)` = a square
+                    // button, and the vertical inset gives 1. It is simply a
+                    // small radius on a small button.
                     Node {
                         width: Val::Px(22.0),
                         height: Val::Px(22.0),
                         justify_content: JustifyContent::Center,
                         align_items: AlignItems::Center,
-                        border_radius: BorderRadius::all(Val::Px(4.0)),
+                        border_radius: BorderRadius::all(style.metrics.radius(Step::BASE).into()),
                         ..default()
                     },
                     BackgroundColor(Color::NONE),

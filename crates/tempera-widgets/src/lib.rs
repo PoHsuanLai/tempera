@@ -314,6 +314,22 @@ mod token_scale_tests {
     }
 
     #[test]
+    fn the_scale_reads_added_in_the_sweep_land_on_their_old_values() {
+        // The last pass routed a batch of literals through the scale —
+        // command's 4/12/16/24/6/8, number_field's 28 and 8, dialog's close
+        // radius 4. Every one is a step, and at the default base each must
+        // return exactly what it replaced or the change stopped being
+        // invisible.
+        use crate::theme::{Scale, Step};
+        let s = Scale::new(Base::default());
+        let at = |n: i8| s.at(Step::new(n)).get();
+        assert_eq!(
+            (at(0), at(1), at(2), at(3), at(4), at(5)),
+            (4.0, 6.0, 8.0, 12.0, 16.0, 24.0)
+        );
+    }
+
+    #[test]
     fn overriding_a_token_still_works() {
         // The reason these stay `Resource`s with public fields. Generating a
         // default must not turn a tunable into a fixed value — a host that
