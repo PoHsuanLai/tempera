@@ -9,7 +9,7 @@ use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 
 use super::components::{ButtonSize, ButtonVariant};
-use crate::theme::{ColorPalette, FontHandle, Spacing, Typography};
+use crate::theme::{ColorPalette, FontHandle, Metrics, Spacing, Typography};
 
 /// The slice of theme tokens read by button systems and the
 /// [`spawn_button`] helper.
@@ -19,6 +19,10 @@ pub struct ButtonStyle<'w> {
     pub spacing: Res<'w, Spacing>,
     pub typography: Res<'w, Typography>,
     pub font: Res<'w, FontHandle>,
+    /// The geometry half. Sizes resolve through here rather than through
+    /// [`ButtonSize`]'s `const` table, so the three sizes that map onto a
+    /// declared [`crate::theme::Sizing`] height follow a density change.
+    pub metrics: Metrics<'w>,
 }
 
 impl<'w> ButtonStyle<'w> {
@@ -46,10 +50,7 @@ impl<'w> ButtonStyle<'w> {
 pub enum ButtonContent {
     Text(String),
     Icon(Handle<Image>),
-    TextAndIcon {
-        text: String,
-        icon: Handle<Image>,
-    },
+    TextAndIcon { text: String, icon: Handle<Image> },
 }
 
 impl ButtonContent {
@@ -91,9 +92,10 @@ pub fn spawn_button_sized(
     size: ButtonSize,
 ) -> Entity {
     let visuals = variant_visuals(variant, &style.palette);
+    let height = size.height_from(&style.metrics);
 
     let mut node = Node {
-        height: Val::Px(size.height()),
+        height: Val::Px(height),
         padding: UiRect::horizontal(Val::Px(size.padding_x())),
         align_items: AlignItems::Center,
         justify_content: JustifyContent::Center,
@@ -108,8 +110,11 @@ pub fn spawn_button_sized(
     };
     if size.is_icon() {
         // Square: explicit width keeps the button from collapsing to
-        // the icon's intrinsic size on its own.
-        node.width = Val::Px(size.height());
+        // the icon's intrinsic size on its own. Must be the *resolved*
+        // height, not `size.height()` — `Icon` maps onto `control_md`, so
+        // reading the table here would leave a 40px-tall icon button 32px
+        // wide at Spacious density.
+        node.width = Val::Px(height);
     }
 
     let mut root = commands.spawn((
@@ -137,10 +142,10 @@ pub fn spawn_button_sized(
             spawn_text(parent, style, &text, size, visuals.fg_resting);
         }
         ButtonContent::Icon(image) => {
-            spawn_icon(parent, image, size);
+            spawn_icon(parent, image, size, height);
         }
         ButtonContent::TextAndIcon { text, icon } => {
-            spawn_icon(parent, icon, size);
+            spawn_icon(parent, icon, size, height);
             spawn_text(parent, style, &text, size, visuals.fg_resting);
         }
     });
@@ -163,15 +168,23 @@ fn spawn_text(
     ));
 }
 
-fn spawn_icon(parent: &mut ChildSpawnerCommands, image: Handle<Image>, size: ButtonSize) {
+fn spawn_icon(
+    parent: &mut ChildSpawnerCommands,
+    image: Handle<Image>,
+    size: ButtonSize,
+    height: f32,
+) {
     // Icon-only buttons devote ~62% of the widget to the icon
     // (matches shadcn `[&_svg:not([class*='size-'])]:size-4` on a
     // 24px or 32px button). Text-bearing buttons keep the smaller
     // 50% icon so it sits visually balanced next to the label.
+    //
+    // `height` is the resolved height, not `size.height()`, so an icon
+    // stays proportional when a density change moves its button.
     let icon_size = if size.is_icon() {
-        (size.height() * 0.62).floor()
+        (height * 0.62).floor()
     } else {
-        (size.height() * 0.5).floor()
+        (height * 0.5).floor()
     };
     parent.spawn((
         ImageNode::new(image),

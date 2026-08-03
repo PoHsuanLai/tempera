@@ -152,7 +152,12 @@ const HIT_TARGET_FLOOR: f32 = 24.0;
 
 /// The multiple of font size a line box occupies. 1.4 is the usual body
 /// figure and the one the heights below were checked against.
-const LINE_HEIGHT_RATIO: f32 = 1.4;
+///
+/// Shared with [`super::Metrics::text_inset`], which solves padding from it:
+/// `build` rejecting a config and `text_inset` centring text inside one are
+/// the same question asked twice, so they must use the same ratio. A second
+/// copy is exactly the restatement this module exists to remove.
+pub(crate) const LINE_HEIGHT_RATIO: f32 = 1.4;
 
 /// Control heights, **declared** from the grid rather than generated.
 ///

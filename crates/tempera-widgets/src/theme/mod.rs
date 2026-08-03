@@ -31,10 +31,12 @@ use bevy::prelude::*;
 
 mod base;
 mod config;
+mod metrics;
 mod scale;
 
 pub use base::{Base, Step};
 pub use config::{Density, Incoherent, Sizing, TextScale, ThemeConfig, Tokens};
+pub use metrics::{ControlSize, Metrics};
 pub use scale::{ControlHeight, FontSize as TextSize, Gap, Radius, Scale};
 
 // ---------------------------------------------------------------------------
