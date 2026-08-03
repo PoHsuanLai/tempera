@@ -25,6 +25,7 @@
 //!    .insert_resource(ColorPalette::light());
 //! ```
 
+use bevy::ecs::query::QueryFilter;
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 
@@ -399,4 +400,74 @@ impl<'w> MenuStyle<'w> {
     pub fn shortcut_font(&self) -> TextFont {
         self.font.text_font(self.typography.xs)
     }
+}
+
+// ---------------------------------------------------------------------------
+// Reacting to a token change
+// ---------------------------------------------------------------------------
+
+/// Run condition: a token resource changed this frame.
+///
+/// Repaint systems filter their queries on `Changed<Interaction>` so they
+/// touch only the widget the pointer moved over — which is right, and which
+/// also means a palette swap repaints *nothing* until the user happens to
+/// hover each widget in turn. A query filter cannot express "or the theme
+/// moved", because that is not a fact about any entity.
+///
+/// So the systems drop the filter and gate on this instead: they run when a
+/// widget's interaction changed **or** when the palette did, and they
+/// compare before writing so the unchanged case stays free.
+///
+/// Deliberately reads only [`ColorPalette`] — the geometry tokens are
+/// consumed at spawn and are not repaint inputs. Adding them here would
+/// make every hover repaint depend on resources it never reads.
+pub fn palette_changed(palette: Res<ColorPalette>) -> bool {
+    palette.is_changed()
+}
+
+/// Run condition for a widget's repaint system: something it paints from
+/// moved.
+///
+/// Two independent triggers, which is the whole reason this exists:
+///
+/// - a widget's own `Interaction` changed, or one was just spawned — the
+///   per-entity case the old `Or<(Changed<Interaction>, Added<W>)>` query
+///   filter covered; and
+/// - [`ColorPalette`] changed, which makes **every** widget stale at once.
+///
+/// The second cannot be a query filter. `Changed<T>` asks a question about
+/// an entity, and "the theme moved" is not a fact about any entity — which
+/// is why a palette swap used to repaint nothing until the user hovered
+/// each widget in turn.
+///
+/// Moving the test from the query to the system means the system's query
+/// is unfiltered and it iterates every widget of its kind on the frames it
+/// does run. That is affordable only because each of these systems compares
+/// before writing, so an unchanged widget costs a `Color` comparison and
+/// marks nothing dirty.
+pub fn repaint_needed<W: Component>(
+    palette: Res<ColorPalette>,
+    touched: Query<(), Or<(Changed<Interaction>, Added<W>)>>,
+) -> bool {
+    palette.is_changed() || !touched.is_empty()
+}
+
+/// [`repaint_needed`] for a widget with extra state of its own.
+///
+/// A checkbox restyles on `Changed<Checked>` and a switch on
+/// `Changed<InteractionDisabled>` as well as on hover, and those triggers
+/// have to survive the move out of the query filter — dropping one would
+/// leave a checkbox showing the wrong art until the pointer crossed it.
+///
+/// `F` is the widget's own trigger set, exactly as it read inside the old
+/// `Or<(..)>`; the palette and `Added<W>` are supplied here.
+///
+/// ```ignore
+/// repaint_needed_on::<TemperaCheckbox, Or<(Changed<Checked>, Changed<InteractionDisabled>)>>
+/// ```
+pub fn repaint_needed_on<W: Component, F: QueryFilter + 'static>(
+    palette: Res<ColorPalette>,
+    touched: Query<(), Or<(Changed<Interaction>, Added<W>, F)>>,
+) -> bool {
+    palette.is_changed() || !touched.is_empty()
 }

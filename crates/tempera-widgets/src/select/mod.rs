@@ -32,7 +32,7 @@ mod spawn;
 mod systems;
 
 pub use components::{Select, SelectOption, SelectOptions, SelectValue, ValueChange};
-pub use spawn::{spawn_select, SelectStyle};
+pub use spawn::{SelectStyle, spawn_select};
 
 pub struct SelectPlugin;
 
@@ -45,13 +45,15 @@ impl Plugin for SelectPlugin {
         if !app.is_plugin_added::<ContextMenuPlugin>() {
             app.add_plugins(ContextMenuPlugin);
         }
-        app.add_observer(systems::open_on_click)
-            .add_systems(
-                Update,
-                (
-                    systems::on_menu_item_activated,
-                    systems::paint_select_hover,
+        app.add_observer(systems::open_on_click).add_systems(
+            Update,
+            (
+                systems::on_menu_item_activated,
+                systems::paint_select_hover.run_if(
+                    crate::theme::repaint_needed::<Select>
+                        .or_else(resource_changed::<crate::theme::MenuTokens>),
                 ),
-            );
+            ),
+        );
     }
 }

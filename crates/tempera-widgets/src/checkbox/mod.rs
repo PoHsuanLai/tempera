@@ -16,6 +16,7 @@
 //! Observe `ValueChange<bool>` on the root entity to react to flips.
 
 use bevy::prelude::*;
+use bevy::ui::InteractionDisabled;
 
 use crate::checkbox_behavior::CheckboxBehaviorPlugin;
 use crate::theme::ThemePlugin;
@@ -27,7 +28,7 @@ mod systems;
 pub use bevy::ui::Checked;
 pub use bevy::ui_widgets::{Checkbox, ValueChange};
 pub use components::{CheckGlyph, TemperaCheckbox};
-pub use spawn::{spawn_checkbox, CheckboxStyle};
+pub use spawn::{CheckboxStyle, spawn_checkbox};
 
 pub struct CheckboxStylePlugin;
 
@@ -43,7 +44,12 @@ impl Plugin for CheckboxStylePlugin {
             Update,
             (
                 systems::retarget_checkbox,
-                systems::repaint_checkbox,
+                systems::repaint_checkbox.run_if(
+                    crate::theme::repaint_needed_on::<
+                        TemperaCheckbox,
+                        Or<(Changed<Checked>, Changed<InteractionDisabled>)>,
+                    >,
+                ),
                 systems::drive_checkbox,
             )
                 .chain(),

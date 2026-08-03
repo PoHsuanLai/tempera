@@ -39,7 +39,7 @@
 use bevy::input_focus::InputDispatchPlugin;
 use bevy::input_focus::tab_navigation::TabNavigationPlugin;
 use bevy::prelude::*;
-use bevy::ui_widgets::{slider_self_update, SliderPlugin as BevySliderPlugin};
+use bevy::ui_widgets::{SliderPlugin as BevySliderPlugin, slider_self_update};
 
 use crate::theme::ThemePlugin;
 
@@ -51,7 +51,7 @@ pub use bevy::ui_widgets::{
     Slider, SliderRange, SliderStep, SliderThumb, SliderValue, TrackClick, ValueChange,
 };
 pub use components::{SliderFill, SliderSize, SliderTrack};
-pub use spawn::{spawn_slider, SliderStyle};
+pub use spawn::{SliderStyle, spawn_slider};
 
 pub struct SliderStylePlugin;
 
@@ -76,6 +76,15 @@ impl Plugin for SliderStylePlugin {
         // get a working slider out of the box.
         app.add_observer(slider_self_update);
 
-        app.add_systems(Update, (systems::reposition_thumb, systems::repaint_slider));
+        app.add_systems(
+            Update,
+            (
+                systems::reposition_thumb,
+                systems::repaint_slider.run_if(crate::theme::repaint_needed_on::<
+                    Slider,
+                    Changed<bevy::ui::InteractionDisabled>,
+                >),
+            ),
+        );
     }
 }

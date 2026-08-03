@@ -16,8 +16,8 @@
 //! commands.entity(id).observe(|on: On<TabsChanged>| info!("tab -> {}", on.active));
 //! ```
 
-use bevy::input_focus::tab_navigation::TabNavigationPlugin;
 use bevy::input_focus::InputDispatchPlugin;
+use bevy::input_focus::tab_navigation::TabNavigationPlugin;
 use bevy::prelude::*;
 use bevy::ui_widgets::ButtonPlugin as BevyButtonPlugin;
 
@@ -28,7 +28,7 @@ mod spawn;
 mod systems;
 
 pub use components::{TabIndicator, TabTrigger, Tabs, TabsActive};
-pub use spawn::{spawn_tabs, TabsStyle};
+pub use spawn::{TabsStyle, spawn_tabs};
 pub use systems::TabsChanged;
 
 pub struct TabsPlugin;
@@ -50,6 +50,13 @@ impl Plugin for TabsPlugin {
         // TabsChanged is an EntityEvent triggered via `commands.trigger`;
         // no add_message registration needed.
         app.add_observer(systems::trigger_on_activate);
-        app.add_systems(Update, (systems::repaint_triggers, systems::move_indicator));
+        app.add_systems(
+            Update,
+            (
+                systems::repaint_triggers
+                    .run_if(crate::theme::repaint_needed_on::<TabTrigger, Changed<TabsActive>>),
+                systems::move_indicator,
+            ),
+        );
     }
 }

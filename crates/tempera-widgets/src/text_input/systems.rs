@@ -9,44 +9,30 @@ use bevy::ui::InteractionDisabled;
 use super::components::TextInput;
 use crate::theme::ColorPalette;
 
+/// Paint every input's border.
+///
+/// One unfiltered pass, where there used to be a `dirty` query plus an
+/// `all` query plus a `handled` vec to keep them from double-painting.
+/// That structure existed because focus change is not a per-entity fact
+/// and could not be a query filter — the same reason a palette swap could
+/// not be. Both now live in the run condition, so there is one loop, and
+/// [`paint`] compares before writing.
 pub(crate) fn repaint_text_input(
     palette: Res<ColorPalette>,
     focus: Res<InputFocus>,
-    dirty: Query<
-        (Entity, &Interaction, Has<InteractionDisabled>),
-        (
-            With<TextInput>,
-            Or<(Changed<Interaction>, Changed<InteractionDisabled>, Added<TextInput>)>,
-        ),
-    >,
-    all: Query<(Entity, &Interaction, Has<InteractionDisabled>), With<TextInput>>,
+    inputs: Query<(Entity, &Interaction, Has<InteractionDisabled>), With<TextInput>>,
     mut borders: Query<&mut BorderColor, With<TextInput>>,
 ) {
     let focused = focus.get();
-
-    let mut handled: Vec<Entity> = Vec::new();
-    for (entity, interaction, disabled) in &dirty {
-        handled.push(entity);
-        paint(&palette, entity, interaction, disabled, focused == Some(entity), &mut borders);
-    }
-
-    // On focus changes, repaint inputs whose focused state may have
-    // flipped (so the previously-focused one drops back to its
-    // hover/idle border).
-    if focus.is_changed() {
-        for (entity, interaction, disabled) in &all {
-            if handled.contains(&entity) {
-                continue;
-            }
-            paint(
-                &palette,
-                entity,
-                interaction,
-                disabled,
-                focused == Some(entity),
-                &mut borders,
-            );
-        }
+    for (entity, interaction, disabled) in &inputs {
+        paint(
+            &palette,
+            entity,
+            interaction,
+            disabled,
+            focused == Some(entity),
+            &mut borders,
+        );
     }
 }
 
@@ -70,7 +56,10 @@ fn paint(
     } else {
         palette.input
     };
-    *border = BorderColor::all(with_alpha(edge, alpha));
+    let want = BorderColor::all(with_alpha(edge, alpha));
+    if *border != want {
+        *border = want;
+    }
 }
 
 fn with_alpha(c: Color, a: f32) -> Color {

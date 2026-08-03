@@ -68,13 +68,7 @@ pub(crate) fn reposition_thumb(
 /// subtle "this is grabbable" cue.
 pub(crate) fn repaint_slider(
     palette: Res<ColorPalette>,
-    sliders: Query<
-        (Entity, &Interaction, Has<InteractionDisabled>),
-        (
-            With<Slider>,
-            Or<(Changed<Interaction>, Changed<InteractionDisabled>, Added<Slider>)>,
-        ),
-    >,
+    sliders: Query<(Entity, &Interaction, Has<InteractionDisabled>), With<Slider>>,
     children_of: Query<&Children>,
     tracks: Query<&Children, With<SliderTrack>>,
     mut fills: Query<&mut BackgroundColor, (With<SliderFill>, Without<SliderThumb>)>,
@@ -82,7 +76,8 @@ pub(crate) fn repaint_slider(
     mut thumb_nodes: Query<&mut Node, With<SliderThumb>>,
 ) {
     for (slider, interaction, disabled) in &sliders {
-        let hovered = !disabled && matches!(interaction, Interaction::Hovered | Interaction::Pressed);
+        let hovered =
+            !disabled && matches!(interaction, Interaction::Hovered | Interaction::Pressed);
         let Ok(kids) = children_of.get(slider) else {
             continue;
         };
@@ -98,14 +93,26 @@ pub(crate) fn repaint_slider(
                 } else {
                     palette.primary
                 };
-                if let Ok(mut bg) = fills.get_mut(grand) {
+                if let Ok(mut bg) = fills.get_mut(grand)
+                    && bg.0 != color
+                {
                     *bg = BackgroundColor(color);
                 }
-                if let Ok(mut border) = thumb_borders.get_mut(grand) {
-                    *border = BorderColor::all(color);
+                let want_border = BorderColor::all(color);
+                if let Ok(mut border) = thumb_borders.get_mut(grand)
+                    && *border != want_border
+                {
+                    *border = want_border;
                 }
-                if let Ok(mut node) = thumb_nodes.get_mut(grand) {
-                    node.border = UiRect::all(Val::Px(if hovered { 3.0 } else { 2.0 }));
+                // `Node` especially: bevy_ui gates its taffy upload on
+                // `Ref<Node>::is_changed()`, and a `DerefMut` sets that
+                // flag whether or not the value moved. Writing this
+                // unconditionally would re-upload the thumb every frame.
+                let want_edge = UiRect::all(Val::Px(if hovered { 3.0 } else { 2.0 }));
+                if let Ok(mut node) = thumb_nodes.get_mut(grand)
+                    && node.border != want_edge
+                {
+                    node.border = want_edge;
                 }
             }
         }

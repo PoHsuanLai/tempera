@@ -37,15 +37,7 @@ pub(crate) fn repaint_switch_track(
             Has<InteractionDisabled>,
             &Children,
         ),
-        (
-            With<Switch>,
-            Or<(
-                Changed<Checked>,
-                Changed<Interaction>,
-                Changed<InteractionDisabled>,
-                Added<Switch>,
-            )>,
-        ),
+        With<Switch>,
     >,
     mut track_bg: Query<&mut BackgroundColor, (With<Switch>, Without<SwitchThumb>)>,
     mut thumb_bg: Query<&mut BackgroundColor, (With<SwitchThumb>, Without<Switch>)>,
@@ -54,23 +46,33 @@ pub(crate) fn repaint_switch_track(
         let alpha = if disabled { 0.5 } else { 1.0 };
         let hovered =
             !disabled && matches!(interaction, Interaction::Hovered | Interaction::Pressed);
-        let base = if checked { palette.primary } else { palette.muted };
+        let base = if checked {
+            palette.primary
+        } else {
+            palette.muted
+        };
         let fill = if hovered {
             ColorPalette::hover_lift(base, 0.06)
         } else {
             base
         };
-        if let Ok(mut b) = track_bg.get_mut(entity) {
-            *b = BackgroundColor(with_alpha(fill, alpha));
+        let track = with_alpha(fill, alpha);
+        if let Ok(mut b) = track_bg.get_mut(entity)
+            && b.0 != track
+        {
+            *b = BackgroundColor(track);
         }
         let thumb_color = if checked {
             palette.primary_foreground
         } else {
             palette.foreground
         };
+        let thumb = with_alpha(thumb_color, alpha);
         for child in kids.iter() {
-            if let Ok(mut b) = thumb_bg.get_mut(child) {
-                *b = BackgroundColor(with_alpha(thumb_color, alpha));
+            if let Ok(mut b) = thumb_bg.get_mut(child)
+                && b.0 != thumb
+            {
+                *b = BackgroundColor(thumb);
             }
         }
     }

@@ -14,9 +14,6 @@ type RowPaint<'a> = (
     &'a mut BackgroundColor,
 );
 
-/// Rows whose tint may be stale: the pointer moved, or the row is new.
-type RepaintedRows = Or<(Changed<Interaction>, Added<TreeRow>)>;
-
 /// A row's children and whether it is expanded.
 type ChevronRow<'a> = (&'a Children, Has<TreeRowExpanded>);
 
@@ -32,14 +29,20 @@ type ChevronArt<'a> = (Entity, Option<&'a mut ImageNode>);
 /// cursor never leaves — because it was despawned and respawned under a
 /// stationary pointer, which a rebuilt list does constantly — still ends
 /// up with the right tint.
+/// The query is unfiltered and the writes are compared: a palette swap
+/// makes every row stale at once, which no per-entity filter can say. See
+/// [`crate::theme::repaint_needed`].
 pub(crate) fn repaint_rows(
     palette: Res<ColorPalette>,
-    rows: Query<RowPaint, RepaintedRows>,
+    rows: Query<RowPaint, With<TreeRow>>,
     mut labels: Query<&mut TextColor, With<TreeRowLabel>>,
 ) {
     for (interaction, children, is_header, mut bg) in rows {
         let hovered = !matches!(interaction, Interaction::None);
-        bg.0 = if hovered { palette.muted } else { Color::NONE };
+        let want = if hovered { palette.muted } else { Color::NONE };
+        if bg.0 != want {
+            bg.0 = want;
+        }
 
         let label_color = if hovered || is_header {
             palette.foreground
@@ -47,7 +50,9 @@ pub(crate) fn repaint_rows(
             palette.muted_foreground
         };
         for child in children.iter() {
-            if let Ok(mut color) = labels.get_mut(child) {
+            if let Ok(mut color) = labels.get_mut(child)
+                && color.0 != label_color
+            {
                 color.0 = label_color;
             }
         }
