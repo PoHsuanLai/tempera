@@ -76,8 +76,8 @@ mod systems;
 pub use components::{HasSubMenu, MenuRootMarker, SubMenuChild, SubMenuOf, TemperaMenuItem};
 pub use registry::{
     AppMenuExt, Destructive, MenuClosed, MenuDisabled, MenuItemMarker, MenuLabel, MenuOrder,
-    MenuShortcut, MenuSurface, SeparatorBefore, VisibleWhen, child_item, collect_surface,
-    menu_item, open_surface,
+    MenuShortcut, MenuShortcutFor, MenuSurface, SeparatorBefore, VisibleWhen, child_item,
+    collect_surface, menu_item, open_surface,
 };
 pub use request::{MenuItemSpec, MenuRequest};
 
