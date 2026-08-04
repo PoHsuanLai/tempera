@@ -34,6 +34,15 @@ pub struct DockBuildSet;
 #[derive(Resource, Debug, Default)]
 pub(crate) struct RebuildRequested(pub bool);
 
+/// How the root lays its single child out.
+///
+/// The root behaves as a one-child column: whatever the tree's top node is, it
+/// fills the window. This is a constant rather than a literal at each of the
+/// two sites that need it because they must agree — the root's `Node` has to
+/// *lay out* along the axis that `spawn_node` *sizes* against, and nothing
+/// else in the crate would notice if they diverged.
+const ROOT_AXIS: Axis = Axis::Column;
+
 /// Build or reconcile the tree whenever the layout changes.
 pub(crate) fn build_dock(
     mut commands: Commands,
@@ -81,6 +90,15 @@ pub(crate) fn build_dock(
             Node {
                 width: Val::Percent(100.0),
                 height: Val::Percent(100.0),
+                // Must match the axis passed to `spawn_node` below, which is
+                // why both read the same constant. `sized_node` gives a flex
+                // child `height: 0` + `flex_grow` when its parent is a column
+                // — correct only if the parent actually *lays out* as one.
+                // Leaving this at bevy's `Row` default made `flex_grow` widen
+                // a child that was already 100% wide, and the height stayed
+                // zero: the whole tree collapsed to nothing below the first
+                // fixed pane.
+                flex_direction: ROOT_AXIS.flex_direction(),
                 ..default()
             },
             BackgroundColor(Color::NONE),
@@ -93,9 +111,7 @@ pub(crate) fn build_dock(
         &style,
         &layout.root,
         &kept,
-        // The root behaves as a single-child column: whatever the tree's top
-        // node is, it fills the window.
-        Axis::Column,
+        ROOT_AXIS,
     );
     commands.entity(root).add_child(child);
 }
