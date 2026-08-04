@@ -51,6 +51,15 @@ impl Plugin for TemperaDockPlugin {
                 Update,
                 (apply_visibility, apply_active_page).after(DockBuildSet),
             )
+            // Sections after the build, so a stack declared in the same frame
+            // as its pane finds that pane's children already parented.
+            //
+            // Exclusive because a section's `When` is a `System`, and running
+            // one needs `&mut World`.
+            .add_systems(
+                Update,
+                crate::section::reconcile_sections.after(DockBuildSet),
+            )
             // Chips after the build, so a strip spawned into a pane on the
             // same frame finds that pane's children already parented; and
             // reconcile before repaint, so a new chip is painted on the frame

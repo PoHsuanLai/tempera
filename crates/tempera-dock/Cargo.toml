@@ -27,6 +27,10 @@ tracing.workspace = true
 # the tokens were not separately depend-able. They are now: one import, one
 # `ColorPalette`, and no widget compiled to reach it.
 tempera-theme.workspace = true
+# Gating. A section declares `When` — the same condition a command uses to
+# decide whether it applies, and a menu row to decide whether it shows. One
+# vocabulary, so a host writes a predicate once.
+tempera-input.workspace = true
 
 [dev-dependencies]
 bevy = { workspace = true, features = ["bevy_ui", "bevy_picking", "bevy_log"] }
