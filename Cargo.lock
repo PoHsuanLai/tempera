@@ -5351,6 +5351,7 @@ dependencies = [
  "bevy_resvg",
  "ron",
  "serde",
+ "tempera-input",
  "tempera-theme",
  "tracing",
 ]
