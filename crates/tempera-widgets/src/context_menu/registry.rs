@@ -49,9 +49,9 @@
 //!
 //! # Optional is an absent component
 //!
-//! No [`MenuOrder`] means last; no [`VisibleWhen`] means always; no
-//! [`MenuShortcut`] means no keycap. That is why gaining conditions did
-//! not grow anything an extra field.
+//! No [`MenuOrder`] means last; no [`VisibleWhen`] means always; neither
+//! [`MenuShortcut`] nor [`MenuShortcutFor`] means no keycap. That is why
+//! gaining conditions did not grow anything an extra field.
 
 use std::borrow::Cow;
 
@@ -124,13 +124,38 @@ pub struct Destructive;
 #[derive(Component, Default, Debug)]
 pub struct SeparatorBefore;
 
-/// Keycap hint shown at the trailing edge.
+/// A fixed keycap shown at the trailing edge.
 ///
-/// This module does not know what the chord is bound to and does not
-/// check: it is a *hint*, and the binding lives wherever the host's
-/// keymap does.
+/// Literal: whatever the caller wrote, unchanged for the life of the item. For
+/// a chord the user can rebind, declare [`MenuShortcutFor`] instead.
 #[derive(Component, Clone, Debug)]
 pub struct MenuShortcut(pub KbdChord);
+
+/// Show the live binding of `0` as this row's keycap.
+///
+/// Resolved during [`collect_surface`] — every time the menu opens, from the
+/// command's current [`Keybind`](tempera_input::Keybind) — so a rebind shows
+/// up the next time the menu is opened, and an unbind removes the keycap
+/// rather than leaving a stale one.
+///
+/// # Why not just store the chord
+///
+/// A [`MenuShortcut`] written at registration is a second owner of a value
+/// `Keybind` already owns, and nothing updates it: the keycap shows whatever
+/// was bound the moment the item was declared, for the life of the app. Same
+/// reasoning as [`TooltipShortcutFor`](crate::tooltip::TooltipShortcutFor),
+/// same remedy — name the command, resolve at the point of use. Here the point
+/// of use is `collect_surface`, which already has `&mut World`, so the lookup
+/// costs a hash probe per row per open.
+///
+/// Takes precedence over [`MenuShortcut`] when both are present: the live
+/// answer is the truer one.
+///
+/// An id nothing claims shows no keycap. Commands are registered by whichever
+/// crates are present, so a menu naming one from an absent crate is ordinary
+/// rather than broken.
+#[derive(Component, Clone, Debug)]
+pub struct MenuShortcutFor(pub tempera_input::CommandId);
 
 /// Render the row greyed and unclickable.
 #[derive(Component, Default, Debug)]
@@ -326,6 +351,26 @@ fn passes(world: &mut World, entity: Entity) -> bool {
     passed
 }
 
+/// The keycap for a row: the live binding if it tracks a command, else the
+/// literal chord, else nothing.
+///
+/// Read here rather than stored on the item, so a rebind between two openings
+/// of the same menu shows the new chord. A command the registry does not know —
+/// or one with no binding — yields `None`, which renders no keycap.
+fn resolve_shortcut(world: &World, entity: Entity) -> Option<KbdChord> {
+    if let Some(tracked) = world.get::<MenuShortcutFor>(entity) {
+        let live = world
+            .get_resource::<tempera_input::CommandRegistry>()
+            .and_then(|registry| registry.get(tracked.0.as_str()))
+            .and_then(|command| world.get::<tempera_input::Keybind>(command))
+            .map(|bind| bind.0.clone().into());
+        // A tracked row shows the live answer or nothing — never a stale
+        // literal, which is the staleness this component exists to avoid.
+        return live;
+    }
+    world.get::<MenuShortcut>(entity).map(|s| s.0.clone())
+}
+
 /// Turn one item entity into a spec, recursing into its children.
 fn lower(world: &mut World, entity: Entity) -> MenuItemSpec {
     let label = world
@@ -335,7 +380,7 @@ fn lower(world: &mut World, entity: Entity) -> MenuItemSpec {
     let destructive = world.get::<Destructive>(entity).is_some();
     let separator_before = world.get::<SeparatorBefore>(entity).is_some();
     let disabled = world.get::<MenuDisabled>(entity).is_some();
-    let shortcut = world.get::<MenuShortcut>(entity).map(|s| s.0.clone());
+    let shortcut = resolve_shortcut(world, entity);
 
     // The id is what a host matches on when it routes by string rather
     // than by entity. Both travel on `MenuItemActivated`.
@@ -701,5 +746,153 @@ mod tests {
         let world = World::new();
         let mut gate = VisibleWhen::new(|| true);
         assert!(!gate.eval(&world));
+    }
+    // ── live shortcuts ───────────────────────────────────────────────────
+
+    /// An app with one command registered under `id`, bound to `chord` if
+    /// given, plus this crate's menu test resource.
+    ///
+    /// Goes through `spawn_command` rather than spawning the components by
+    /// hand: that is what indexes the command in `CommandRegistry`, and a bare
+    /// spawn leaves the lookup empty — every assertion here would then pass for
+    /// the wrong reason, seeing "no binding" where it meant "not registered".
+    fn app_with_command(id: &str, chord: Option<tempera_input::Chord>) -> App {
+        use tempera_input::{AppCommandExt, CommandLabel, CommandRegistry, dyn_cmd, on_press};
+
+        let mut app = App::new();
+        app.init_resource::<HasSelection>();
+        app.init_resource::<CommandRegistry>();
+        app.spawn_command(dyn_cmd(id, (CommandLabel::new("cmd"), on_press(|_| {}))));
+
+        if let Some(chord) = chord {
+            let command = app
+                .world()
+                .resource::<CommandRegistry>()
+                .get(id)
+                .expect("just registered");
+            app.world_mut()
+                .entity_mut(command)
+                .insert(tempera_input::Keybind(chord));
+        }
+        app
+    }
+
+    fn shortcut_glyphs(spec: &MenuItemSpec) -> Option<Vec<String>> {
+        spec.shortcut
+            .as_ref()
+            .map(|chord| chord.render_order().map(|k| k.glyph()).collect())
+    }
+
+    #[test]
+    fn a_tracked_row_shows_the_live_binding() {
+        let mut app = app_with_command("edit.undo", Some(tempera_input::key(KeyCode::KeyZ)));
+        let w = app.world_mut();
+        w.spawn((
+            menu_item("s", "Undo"),
+            MenuShortcutFor(tempera_input::CommandId("edit.undo".to_owned())),
+        ));
+
+        let items = collect_surface(w, "s");
+        assert_eq!(shortcut_glyphs(&items[0]), Some(vec!["Z".to_owned()]));
+    }
+
+    #[test]
+    fn a_rebind_between_openings_shows_the_new_chord() {
+        // The reason this component exists. A `MenuShortcut` written at
+        // registration would still be showing the old chord here.
+        use tempera_input::{CommandRegistry, Keybind};
+
+        let mut app = app_with_command("edit.undo", Some(tempera_input::key(KeyCode::KeyZ)));
+        let w = app.world_mut();
+        w.spawn((
+            menu_item("s", "Undo"),
+            MenuShortcutFor(tempera_input::CommandId("edit.undo".to_owned())),
+        ));
+        let first = collect_surface(w, "s");
+        assert_eq!(shortcut_glyphs(&first[0]), Some(vec!["Z".to_owned()]));
+
+        let command = w
+            .resource::<CommandRegistry>()
+            .get("edit.undo")
+            .expect("registered");
+        w.entity_mut(command)
+            .insert(Keybind(tempera_input::key(KeyCode::KeyY)));
+
+        let second = collect_surface(w, "s");
+        assert_eq!(shortcut_glyphs(&second[0]), Some(vec!["Y".to_owned()]));
+    }
+
+    #[test]
+    fn an_unbind_between_openings_drops_the_keycap() {
+        // Unbinding is a component *removal*. Resolving at open never asks
+        // whether anything changed, so there is nothing to miss.
+        use tempera_input::{CommandRegistry, Keybind};
+
+        let mut app = app_with_command("edit.undo", Some(tempera_input::key(KeyCode::KeyZ)));
+        let w = app.world_mut();
+        w.spawn((
+            menu_item("s", "Undo"),
+            MenuShortcutFor(tempera_input::CommandId("edit.undo".to_owned())),
+        ));
+        assert!(shortcut_glyphs(&collect_surface(w, "s")[0]).is_some());
+
+        let command = w
+            .resource::<CommandRegistry>()
+            .get("edit.undo")
+            .expect("registered");
+        w.entity_mut(command).remove::<Keybind>();
+
+        assert_eq!(shortcut_glyphs(&collect_surface(w, "s")[0]), None);
+    }
+
+    #[test]
+    fn a_command_nothing_registered_shows_no_keycap() {
+        // A menu naming a command from a crate this build does not ship.
+        let mut app = app_with_command("edit.undo", Some(tempera_input::key(KeyCode::KeyZ)));
+        let w = app.world_mut();
+        w.spawn((
+            menu_item("s", "Ghost"),
+            MenuShortcutFor(tempera_input::CommandId("no.such.command".to_owned())),
+        ));
+
+        let items = collect_surface(w, "s");
+        assert_eq!(shortcut_glyphs(&items[0]), None);
+    }
+
+    #[test]
+    fn a_literal_keycap_is_untouched() {
+        // "Esc to dismiss" has no command behind it and must survive.
+        let mut w = world();
+        w.spawn((
+            menu_item("s", "Dismiss"),
+            MenuShortcut(KbdChord::key(KeyCode::Escape)),
+        ));
+
+        let items = collect_surface(&mut w, "s");
+        assert_eq!(
+            shortcut_glyphs(&items[0]),
+            Some(vec!["\u{238b}".to_owned()])
+        );
+    }
+
+    #[test]
+    fn tracking_wins_over_a_literal_and_never_falls_back_to_it() {
+        // Both present is a caller mistake, but it must resolve one way and
+        // stay there. Falling back to the literal when a binding is missing
+        // would show a chord that is not bound to anything.
+        let mut app = app_with_command("edit.undo", None);
+        let w = app.world_mut();
+        w.spawn((
+            menu_item("s", "Undo"),
+            MenuShortcut(KbdChord::key(KeyCode::KeyQ)),
+            MenuShortcutFor(tempera_input::CommandId("edit.undo".to_owned())),
+        ));
+
+        let items = collect_surface(w, "s");
+        assert_eq!(
+            shortcut_glyphs(&items[0]),
+            None,
+            "an unbound tracked row shows nothing, not the stale literal"
+        );
     }
 }
