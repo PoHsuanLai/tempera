@@ -104,24 +104,32 @@ fn with_alpha(c: Color, a: f32) -> Color {
 /// no-surface look — toolbar glyphs (sidebar toggles, chevrons) recolor on
 /// hover instead of filling a background.
 ///
-/// # Why this writes `SvgColor` and not `ImageNode.color`
+/// # Why this writes both `SvgColor` and `ImageNode.color`
 ///
-/// `ImageNode` on an icon child belongs to `bevy_resvg`: it inserts one
-/// when the SVG finishes loading, replaces it when the asset changes, and
-/// writes its `color` from `SvgColor`. Two systems writing the same field
-/// with no ordering between them means the tint depends on which ran last,
-/// which is a bug that only shows up as an occasional wrong-coloured glyph.
+/// `SvgColor` is the declaration and it is not enough on its own.
+/// `bevy_resvg` reads it in exactly one place — `handle_ui_svg_loaded`, whose
+/// query is filtered `Without<ImageNode>` and which seeds `ImageNode.color`
+/// at the moment it creates the node. Once that node exists the entity leaves
+/// the query for good, and no later `SvgColor` is ever consulted:
+/// `handle_ui_svg_modified` reacts to the *asset* changing, not the tint.
 ///
-/// So there is one writer. Tempera declares the colour it wants and
-/// `bevy_resvg` applies it — the same shape as [`Selected`], where the
-/// widget declares state and the paint system resolves it.
+/// An SVG loads asynchronously, so the `ImageNode` appears some frames after
+/// the button. A tint written before then is picked up; one written after is
+/// silently ignored, and the icon keeps `Color::default()` — black, multiplied
+/// with the glyph. On a dark toolbar that is an invisible icon with nothing
+/// logged and no failing assertion, which is exactly how it shipped.
+///
+/// Writing both is not a two-writer race: `bevy_resvg` touches
+/// `ImageNode.color` only on the frame it inserts the component, and this runs
+/// on every frame after. The two never write it in the same frame, and they
+/// agree on the value regardless.
 pub fn repaint_icon_tints(
     mut commands: Commands,
     buttons: Query<
         (&IconTint, &Interaction, Has<InteractionDisabled>, &Children),
         With<super::TemperaButton>,
     >,
-    icons: Query<Option<&SvgColor>, With<UiSvg>>,
+    mut icons: Query<(Option<&SvgColor>, Option<&mut ImageNode>), With<UiSvg>>,
 ) {
     for (tint, interaction, disabled, kids) in &buttons {
         let mut color = match interaction {
@@ -132,13 +140,21 @@ pub fn repaint_icon_tints(
             color = with_alpha(color, 0.5);
         }
         for child in kids.iter() {
+            let Ok((current, image)) = icons.get_mut(child) else {
+                continue;
+            };
             // Only write on a change. `SvgColor` drives a `Changed`-filtered
             // system inside `bevy_resvg`, so an unconditional insert would
             // re-tint every icon every frame.
-            if let Ok(current) = icons.get(child)
-                && current.is_none_or(|c| c.0 != color)
-            {
+            if current.is_none_or(|c| c.0 != color) {
                 commands.entity(child).insert(SvgColor(color));
+            }
+            // And catch up the node that has already been built. Guarded so a
+            // matching colour does not mark `ImageNode` changed every frame.
+            if let Some(mut image) = image
+                && image.color != color
+            {
+                image.color = color;
             }
         }
     }
@@ -147,7 +163,7 @@ pub fn repaint_icon_tints(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::button::{Button, ButtonSize, ButtonVariant, TemperaButton};
+    use crate::button::{Button, ButtonSize, ButtonVariant, IconTint, TemperaButton};
     use crate::theme::{ColorPalette, ThemePlugin};
 
     fn app() -> App {
@@ -179,6 +195,89 @@ mod tests {
 
     fn bg(app: &App, e: Entity) -> Color {
         app.world().get::<BackgroundColor>(e).unwrap().0
+    }
+
+    /// A button with an icon child, in the state `bevy_resvg` leaves it in
+    /// *before* the SVG finishes loading: `UiSvg` present, no `ImageNode` yet.
+    fn spawn_with_icon(app: &mut App, tint: IconTint) -> (Entity, Entity) {
+        let icon = app
+            .world_mut()
+            .spawn((UiSvg(Handle::default()), Node::default()))
+            .id();
+        let button = spawn(app, ButtonVariant::Ghost, false);
+        app.world_mut()
+            .entity_mut(button)
+            .insert(tint)
+            .add_child(icon);
+        (button, icon)
+    }
+
+    #[test]
+    fn a_tint_reaches_an_icon_node_that_arrives_late() {
+        // The failure this exists for: an SVG loads asynchronously, so
+        // `bevy_resvg` inserts the `ImageNode` some frames after the button
+        // exists. It reads `SvgColor` only at that instant, behind a
+        // `Without<ImageNode>` filter, and never again — so a tint that was
+        // already written stays on `SvgColor` and the node keeps
+        // `Color::default()`, which is black. Multiplied with the glyph on a
+        // dark toolbar that is an invisible icon, with nothing logged.
+        let mut app = App::new();
+        app.add_plugins(ThemePlugin)
+            .add_systems(Update, repaint_icon_tints);
+        let want = Color::srgb(0.8, 0.8, 0.85);
+        let (_button, icon) = spawn_with_icon(&mut app, IconTint::new(want, Color::WHITE));
+
+        // Frames pass with no `ImageNode` — the tint lands on `SvgColor`.
+        app.update();
+        assert_eq!(
+            app.world().get::<SvgColor>(icon).map(|c| c.0),
+            Some(want),
+            "the declaration never reached the icon"
+        );
+
+        // Now the asset lands and `bevy_resvg` builds the node. Its seed
+        // colour is whatever it read at that moment; this reproduces the
+        // case where that is the default rather than the wanted tint.
+        app.world_mut().entity_mut(icon).insert(ImageNode {
+            image: Handle::default(),
+            color: Color::default(),
+            ..default()
+        });
+        app.update();
+
+        assert_eq!(
+            app.world().get::<ImageNode>(icon).map(|i| i.color),
+            Some(want),
+            "the icon node kept its seed colour after the tint was known"
+        );
+    }
+
+    #[test]
+    fn an_icon_tint_follows_the_pointer() {
+        let mut app = App::new();
+        app.add_plugins(ThemePlugin)
+            .add_systems(Update, repaint_icon_tints);
+        let resting = Color::srgb(0.5, 0.5, 0.5);
+        let hover = Color::WHITE;
+        let (button, icon) = spawn_with_icon(&mut app, IconTint::new(resting, hover));
+        app.world_mut().entity_mut(icon).insert(ImageNode {
+            image: Handle::default(),
+            color: Color::default(),
+            ..default()
+        });
+        app.update();
+        assert_eq!(
+            app.world().get::<ImageNode>(icon).map(|i| i.color),
+            Some(resting)
+        );
+
+        *app.world_mut().get_mut::<Interaction>(button).unwrap() = Interaction::Hovered;
+        app.update();
+        assert_eq!(
+            app.world().get::<ImageNode>(icon).map(|i| i.color),
+            Some(hover),
+            "a hovered ghost button must recolour its glyph"
+        );
     }
 
     #[test]

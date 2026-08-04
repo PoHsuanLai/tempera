@@ -9,9 +9,9 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use bevy::prelude::*;
-use bevy::render::view::screenshot::{save_to_disk, Screenshot};
-use tempera::prelude::*;
+use bevy::render::view::screenshot::{Screenshot, save_to_disk};
 use tempera::button::Activate;
+use tempera::prelude::*;
 
 fn parse_screenshot_arg() -> Option<PathBuf> {
     let args: Vec<String> = std::env::args().collect();
@@ -143,9 +143,21 @@ fn spawn_grid(
         .id();
 
     spawn_kind_button(&mut commands, &button_style, row, "Default", Kind::Default);
-    spawn_kind_button(&mut commands, &button_style, row, "With title", Kind::WithTitle);
+    spawn_kind_button(
+        &mut commands,
+        &button_style,
+        row,
+        "With title",
+        Kind::WithTitle,
+    );
     spawn_kind_button(&mut commands, &button_style, row, "Error", Kind::Error);
-    spawn_kind_button(&mut commands, &button_style, row, "Export…", Kind::LongProgress);
+    spawn_kind_button(
+        &mut commands,
+        &button_style,
+        row,
+        "Export…",
+        Kind::LongProgress,
+    );
 }
 
 fn spawn_kind_button(

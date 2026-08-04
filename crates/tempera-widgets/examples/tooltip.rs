@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use bevy::input::keyboard::KeyCode;
 use bevy::prelude::*;
-use bevy::render::view::screenshot::{save_to_disk, Screenshot};
+use bevy::render::view::screenshot::{Screenshot, save_to_disk};
 use leafwing_input_manager::user_input::keyboard::ModifierKey;
 use tempera::kbd::KbdChord;
 use tempera::prelude::*;

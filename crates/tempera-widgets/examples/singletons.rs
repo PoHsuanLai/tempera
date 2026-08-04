@@ -57,7 +57,12 @@ fn spawn_grid(
         TextColor(palette.muted_foreground),
         ChildOf(root),
     ));
-    let sep = spawn_separator(&mut commands, &sep_style, SeparatorAxis::Horizontal, Some(320.0));
+    let sep = spawn_separator(
+        &mut commands,
+        &sep_style,
+        SeparatorAxis::Horizontal,
+        Some(320.0),
+    );
     commands.entity(sep).insert(ChildOf(root));
 
     commands.spawn((
@@ -67,7 +72,10 @@ fn spawn_grid(
         ChildOf(root),
     ));
     let prog = spawn_progress(&mut commands, &prog_style, 320.0, 0.0);
-    commands.entity(prog).insert(ChildOf(root)).insert(Ticker(0.0));
+    commands
+        .entity(prog)
+        .insert(ChildOf(root))
+        .insert(Ticker(0.0));
 
     commands.spawn((
         Text::new("Kbd: \"Ctrl+Shift+P\"".to_string()),
@@ -82,7 +90,11 @@ fn spawn_grid(
 fn animate_progress(time: Res<Time>, mut q: Query<(&mut ProgressValue, &mut Ticker)>) {
     for (mut value, mut ticker) in &mut q {
         ticker.0 = (ticker.0 + time.delta_secs() * 0.5) % 2.0;
-        let t = if ticker.0 <= 1.0 { ticker.0 } else { 2.0 - ticker.0 };
+        let t = if ticker.0 <= 1.0 {
+            ticker.0
+        } else {
+            2.0 - ticker.0
+        };
         value.0 = t;
     }
 }

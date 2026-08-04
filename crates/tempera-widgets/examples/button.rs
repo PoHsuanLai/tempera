@@ -80,7 +80,12 @@ fn spawn_grid(
             ChildOf(row),
         ));
 
-        for size in [ButtonSize::Xs, ButtonSize::Sm, ButtonSize::Md, ButtonSize::Lg] {
+        for size in [
+            ButtonSize::Xs,
+            ButtonSize::Sm,
+            ButtonSize::Md,
+            ButtonSize::Lg,
+        ] {
             let id = spawn_button(
                 &mut commands,
                 &style,
