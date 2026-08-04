@@ -47,6 +47,11 @@ pub fn spawn_chord_inline(
 
     for segment in chord.render_order() {
         commands.spawn((
+            // Marked here rather than by the caller: these are this
+            // function's own entities, and a caller that wanted them
+            // repainted would otherwise have to reach across the widget
+            // boundary to tag children it did not spawn.
+            KbdCapText,
             Text::new(segment.glyph()),
             font.text_font(typography.xs),
             TextColor(color),

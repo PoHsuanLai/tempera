@@ -13,7 +13,10 @@ use bevy::ui::{FocusPolicy, InteractionDisabled};
 use bevy::ui_widgets::{Activate, MenuAction, MenuEvent, MenuItem as BevyMenuItem, MenuPopup};
 use bevy::window::PrimaryWindow;
 
-use super::components::{HasSubMenu, MenuRootMarker, SubMenuChild, SubMenuOf, TemperaMenuItem};
+use super::components::{
+    DestructiveRow, HasSubMenu, MenuItemLabel, MenuItemMutedText, MenuPopoverSurface,
+    MenuRootMarker, MenuSeparator, SubMenuChild, SubMenuOf, TemperaMenuItem,
+};
 use super::request::{MenuItemSpec, MenuRequest};
 use super::{MenuItemActivated, OpenContextMenu};
 use crate::menu_tokens::MenuStyle;
@@ -125,6 +128,7 @@ fn spawn_menu(
             MenuRootMarker {
                 opened_at_frame: frame,
             },
+            MenuPopoverSurface,
             node,
             BackgroundColor(style.palette.popover),
             BorderColor::all(style.palette.border),
@@ -146,8 +150,86 @@ fn spawn_menu(
     }
 }
 
+/// The foreground a row's label resolves to.
+///
+/// Shared by the spawn and the repaint so the two cannot disagree.
+/// Splitting it was the first thing this change did: the branch existed
+/// only inside `spawn_item`, so a repaint would have had to restate it,
+/// and a restated rule drifts.
+fn label_color(palette: &crate::theme::ColorPalette, enabled: bool, destructive: bool) -> Color {
+    if !enabled {
+        palette.muted_foreground
+    } else if destructive {
+        palette.destructive
+    } else {
+        palette.popover_foreground
+    }
+}
+
+/// Repaint an open menu when the theme changes underneath it.
+///
+/// # Why this is needed at all
+///
+/// A context menu is modal and dismisses on focus loss, which looks like
+/// the tooltip's exemption — a popup that cannot outlive a palette swap
+/// needs no repaint. It is not the same: dismissal is driven by *focus*,
+/// and a theme change does not touch focus. A menu left open while
+/// anything else recolours the app (a system dark/light follow, a
+/// keybind, an extension) keeps every colour it was born with, and its
+/// labels invert to unreadable against the new popover.
+///
+/// The hover fill is not here because it is not spawn state — it lives
+/// in `MenuTokens` and is written by `paint_item_highlight` every frame
+/// from a resource that already follows the palette.
+pub(crate) fn repaint_menu_surfaces(
+    palette: Res<crate::theme::ColorPalette>,
+    menu: Res<crate::menu_tokens::MenuTokens>,
+    mut surfaces: Query<(&mut BackgroundColor, &mut BorderColor), With<MenuPopoverSurface>>,
+    mut separators: Query<&mut BackgroundColor, (With<MenuSeparator>, Without<MenuPopoverSurface>)>,
+    rows: Query<(Option<&DestructiveRow>, Has<InteractionDisabled>, &Children)>,
+    mut labels: Query<&mut TextColor, With<MenuItemLabel>>,
+    mut muted: Query<&mut TextColor, (With<MenuItemMutedText>, Without<MenuItemLabel>)>,
+) {
+    let border_want = BorderColor::all(palette.border);
+    for (mut bg, mut border) in &mut surfaces {
+        if bg.0 != palette.popover {
+            bg.0 = palette.popover;
+        }
+        if *border != border_want {
+            *border = border_want;
+        }
+    }
+
+    for mut bg in &mut separators {
+        if bg.0 != menu.separator {
+            bg.0 = menu.separator;
+        }
+    }
+
+    // Resolved per row rather than per label, because the colour is a
+    // property of the *row* (enabled, destructive) and the label is only
+    // where it lands.
+    for (destructive, disabled, children) in &rows {
+        let want = label_color(&palette, !disabled, destructive.is_some());
+        for child in children.iter() {
+            if let Ok(mut color) = labels.get_mut(child)
+                && color.0 != want
+            {
+                color.0 = want;
+            }
+        }
+    }
+
+    for mut color in &mut muted {
+        if color.0 != palette.muted_foreground {
+            color.0 = palette.muted_foreground;
+        }
+    }
+}
+
 fn spawn_separator(commands: &mut Commands, parent: Entity, style: &MenuStyle) {
     commands.spawn((
+        MenuSeparator,
         Node {
             width: Val::Percent(100.0),
             height: Val::Px(1.0),
@@ -166,13 +248,7 @@ fn spawn_item(
     tab_index: i32,
     style: &MenuStyle,
 ) -> Entity {
-    let fg = if !spec.enabled {
-        style.palette.muted_foreground
-    } else if spec.destructive {
-        style.palette.destructive
-    } else {
-        style.palette.popover_foreground
-    };
+    let fg = label_color(&style.palette, spec.enabled, spec.destructive);
 
     let row_node = Node {
         width: Val::Percent(100.0),
@@ -213,9 +289,18 @@ fn spawn_item(
         row_cmds.insert(InteractionDisabled);
     }
 
+    // The remaining half of what `label_color` needs. `enabled` is
+    // already recoverable from `InteractionDisabled`; without this the
+    // repaint would have to guess, and would silently turn every
+    // destructive row into an ordinary one on the first theme change.
+    if spec.destructive {
+        row_cmds.insert(DestructiveRow);
+    }
+
     let row = row_cmds.id();
 
     commands.spawn((
+        MenuItemLabel,
         Text::new(spec.label.clone()),
         style.body_font(),
         TextColor(fg),
@@ -225,6 +310,7 @@ fn spawn_item(
 
     if has_children {
         commands.spawn((
+            MenuItemMutedText,
             Text::new("›"),
             style.body_font(),
             TextColor(style.palette.muted_foreground),
@@ -424,6 +510,7 @@ pub fn manage_submenus(
                     border_radius: BorderRadius::all(Val::Px(style.menu.corner_radius)),
                     ..default()
                 },
+                MenuPopoverSurface,
                 BackgroundColor(style.palette.popover),
                 BorderColor::all(style.palette.border),
                 GlobalZIndex(Z_MENU + 1),

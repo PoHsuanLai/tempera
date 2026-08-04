@@ -32,6 +32,51 @@ pub struct TemperaMenuItem {
     pub origin: Option<Entity>,
 }
 
+/// The row renders in the destructive style.
+///
+/// A *declaration*, not a colour: the paint system resolves it against
+/// the live palette, so nothing here names a `Color`.
+///
+/// It has to exist as a component because a repaint has to be able to
+/// answer "what colour should this label be?" long after the spawn that
+/// first answered it. `MenuItemSpec::destructive` is a spawn argument
+/// and is consumed there; the disabled case was already recoverable from
+/// [`InteractionDisabled`](bevy::ui_widgets::InteractionDisabled), and
+/// this is the same fact for the remaining branch.
+#[derive(Component)]
+pub struct DestructiveRow;
+
+/// Text inside a menu row that follows the row's own foreground.
+///
+/// The label and the submenu arrow resolve to *different* colours from
+/// the same row state, so they cannot share a marker: an arrow is always
+/// `muted_foreground`, while a label is muted only when the row is
+/// disabled. Marking the label specifically is what lets one system
+/// paint both without re-deriving which child is which from the
+/// hierarchy.
+#[derive(Component)]
+pub struct MenuItemLabel;
+
+/// Text inside a menu row that is always `muted_foreground` — the
+/// submenu arrow and the inline shortcut chord.
+#[derive(Component)]
+pub struct MenuItemMutedText;
+
+/// The popover surface of a menu (root or submenu).
+///
+/// Both carry it: a submenu is a peer popup with the same chrome, and a
+/// theme change reaches whichever are open.
+///
+/// Named for the *chrome*, not the menu: [`super::registry::MenuSurface`]
+/// already means "which menu an item belongs to", which is a different
+/// idea that happens to want the same word.
+#[derive(Component)]
+pub struct MenuPopoverSurface;
+
+/// A separator rule between menu rows.
+#[derive(Component)]
+pub struct MenuSeparator;
+
 /// Marks a `MenuPopup` as a submenu spawned by a parent item.
 /// The entity field points to the parent menu item row that owns it.
 #[derive(Component)]
