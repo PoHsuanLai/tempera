@@ -1,6 +1,34 @@
 use bevy::prelude::*;
+use tempera_input::CommandId;
 
 use crate::kbd::KbdChord;
+
+/// This tooltip's chord is whatever `0` is bound to, read fresh on each hover.
+///
+/// Insert it alongside a [`Tooltip`], or let [`Tooltip::shortcut_for`] do it.
+///
+/// # Why the id is a component and not a field
+///
+/// [`resolve_command_shortcuts`](super::systems::resolve_command_shortcuts)
+/// writes the resolved chord into [`Tooltip::shortcut`], so a field holding the
+/// id would be overwritten by its own resolution. The entity remembers instead:
+/// this component survives every resolve, and the resolver's query filters on
+/// it, so a tooltip with a hand-written chord is never touched.
+///
+/// # Why the chord is not simply stored at spawn
+///
+/// That would make the tooltip a second owner of a value
+/// [`Keybind`](tempera_input::Keybind) already owns, and the copy would need
+/// invalidating on every rebind *and* every unbind. Unbinds are component
+/// **removals**, which a `Changed` filter cannot observe — so the version that
+/// looks correct is the one that keeps showing a chord the user just cleared.
+/// Reading at hover has nothing to invalidate.
+///
+/// An id nothing claims shows no chord. Commands are registered by whichever
+/// crates are present, so a toolbar naming one from an absent crate is an
+/// ordinary state rather than a broken one.
+#[derive(Component, Clone, Debug, PartialEq, Eq)]
+pub struct TooltipShortcutFor(pub CommandId);
 
 /// Tooltip preferred placement relative to its target. `Auto` picks
 /// whichever direction has room, preferring `Top → Bottom → Right → Left`
@@ -27,6 +55,9 @@ pub struct Tooltip {
     /// `<TooltipContent>Save Changes <Kbd>S</Kbd></TooltipContent>`
     /// pattern. Typed via [`KbdChord`]; pass a `KeyCode`, a
     /// `ModifierKey`, or a leafwing `ButtonlikeChord`.
+    ///
+    /// For a chord the user can rebind, add [`TooltipShortcutFor`] instead of
+    /// setting this — it is then written for you on each hover.
     pub shortcut: Option<KbdChord>,
     pub position: TooltipPosition,
     /// Wrap width in logical pixels.
@@ -51,11 +82,13 @@ impl Tooltip {
         }
     }
 
-    /// Attach a keyboard-shortcut chip to the popup. Accepts anything
-    /// that lowers into a [`KbdChord`] — a [`bevy::input::keyboard::KeyCode`],
-    /// a leafwing [`leafwing_input_manager::user_input::keyboard::ModifierKey`],
-    /// a `KbdChord` built with `.with(...)`, or a leafwing
-    /// `ButtonlikeChord` resolved from a keymap.
+    /// Show a fixed chord. Accepts anything that lowers into a
+    /// [`KbdChord`] — a [`bevy::input::keyboard::KeyCode`], a leafwing
+    /// [`leafwing_input_manager::user_input::keyboard::ModifierKey`], a
+    /// `KbdChord` built with `.with(...)`, or a leafwing `ButtonlikeChord`.
+    ///
+    /// For a chord the user can rebind, spawn [`TooltipShortcutFor`] beside the
+    /// tooltip instead — this one is what the caller wrote and never changes.
     #[must_use]
     pub fn shortcut(mut self, chord: impl Into<KbdChord>) -> Self {
         self.shortcut = Some(chord.into());

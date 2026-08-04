@@ -3,12 +3,44 @@ use bevy::prelude::*;
 use bevy::ui::{ComputedNode, UiGlobalTransform};
 use bevy::window::PrimaryWindow;
 
-use super::components::{Tooltip, TooltipArrow, TooltipHover, TooltipPopup, TooltipPosition};
+use super::components::{
+    Tooltip, TooltipArrow, TooltipHover, TooltipPopup, TooltipPosition, TooltipShortcutFor,
+};
 use super::spawn::spawn_popup;
 use crate::theme::{ColorPalette, FontHandle, Typography};
 
 /// Z-order for tooltip popups. Above menus, below modals.
 pub(crate) const Z_TOOLTIP: i32 = 2000;
+
+/// Write each hovered tooltip's chord from the command it tracks.
+///
+/// Runs before [`open_tooltips`], so the popup is built from the fresh value.
+/// [`TooltipHover`] is inserted by a `Pointer<Over>` observer, so it is already
+/// present when `Update` starts and a hover never waits a frame.
+///
+/// Writing `None` matters as much as writing `Some`: the entity may carry a
+/// chord from a previous hover, and a binding cleared since then must clear it.
+/// See [`TooltipShortcutFor`] for why this is not resolved once at spawn.
+pub(crate) fn resolve_command_shortcuts(
+    registry: Option<Res<tempera_input::CommandRegistry>>,
+    keybinds: Query<&tempera_input::Keybind>,
+    mut hovered: Query<(&TooltipShortcutFor, &mut Tooltip), Added<TooltipHover>>,
+) {
+    // No registry means no `TemperaInputPlugin`. A tooltip naming a command in
+    // an app with no command system shows no chord rather than failing.
+    let Some(registry) = registry else { return };
+
+    for (tracks, mut tooltip) in &mut hovered {
+        let resolved = registry
+            .get(tracks.0.as_str())
+            .and_then(|command| keybinds.get(command).ok())
+            .map(|bind| bind.0.clone().into());
+
+        if tooltip.shortcut != resolved {
+            tooltip.shortcut = resolved;
+        }
+    }
+}
 
 /// On `Pointer<Over>` of a tooltip target, start the hover timer.
 pub(crate) fn on_hover_start(
