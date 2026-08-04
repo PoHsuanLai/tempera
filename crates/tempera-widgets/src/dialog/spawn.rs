@@ -3,7 +3,9 @@ use bevy::picking::events::{Click, Pointer};
 use bevy::prelude::*;
 use bevy_resvg::prelude::{SvgColor, SvgFile, UiSvg};
 
-use super::components::{Dialog, DialogBackdrop, DialogCard, DialogClose, DialogContent};
+use super::components::{
+    Dialog, DialogBackdrop, DialogCard, DialogClose, DialogContent, DialogTitle, DialogTitleBar,
+};
 use super::messages::DialogDismissed;
 use super::systems::Z_DIALOG;
 use crate::theme::{ColorPalette, ControlSize, FontHandle, Metrics, Step, Typography};
@@ -219,6 +221,7 @@ pub fn spawn_dialog(
     if cfg.title.is_some() || cfg.closable {
         let title_bar = commands
             .spawn((
+                DialogTitleBar,
                 Node {
                     width: Val::Percent(100.0),
                     height: style.metrics.control(ControlSize::Lg).into(),
@@ -236,6 +239,7 @@ pub fn spawn_dialog(
 
         if let Some(title) = &cfg.title {
             commands.spawn((
+                DialogTitle,
                 Text::new(title.clone()),
                 style.font.text_font(style.typography.base),
                 TextColor(style.palette.foreground),
@@ -364,6 +368,148 @@ mod tests {
             painted.to_srgba(),
             want.to_srgba(),
             "the backdrop is not reading ColorPalette::scrim"
+        );
+    }
+
+    /// Every dialog surface follows a theme change.
+    ///
+    /// The bug this covers: all five values below are written once at spawn,
+    /// so a dialog that was open when the user switched theme stayed in the
+    /// old one for as long as it lived. For a *settings* dialog that is the
+    /// entire time they are choosing a theme — the one dialog where the fault
+    /// is guaranteed to be seen.
+    ///
+    /// Driven through `App::update` rather than by calling the system, so the
+    /// run condition is under test too. A repaint that works only when called
+    /// by hand is the same bug in a new place.
+    #[test]
+    fn a_palette_swap_repaints_every_dialog_surface() {
+        use super::super::{DialogPlugin, DialogTitle, DialogTitleBar};
+
+        let mut app = App::new();
+        // `DialogPlugin` brings `SvgPlugin`, whose loader needs `Assets<_>`.
+        // Added here rather than reaching for a bare `ThemePlugin`, because
+        // the run condition that gates the repaint is part of what is under
+        // test and only the real plugin registers it.
+        app.add_plugins(MinimalPlugins)
+            .add_plugins(bevy::asset::AssetPlugin::default())
+            .add_plugins(bevy::image::ImagePlugin::default())
+            // `dismiss_on_escape` reads `KeyboardInput`, and an unregistered
+            // message fails system-param validation outright rather than
+            // reading empty.
+            .add_plugins(bevy::input::InputPlugin)
+            .add_plugins(DialogPlugin)
+            .insert_resource(ColorPalette::dark());
+
+        let world = app.world_mut();
+        let mut state: SystemState<(Commands, DialogStyle)> = SystemState::new(world);
+        let parts = {
+            let (mut commands, style) = state.get(world).expect("theme resources present");
+            spawn_dialog(
+                &mut commands,
+                &style,
+                DialogConfig {
+                    title: Some("Settings".into()),
+                    closable: true,
+                    ..default()
+                },
+            )
+        };
+        state.apply(world);
+        app.update();
+
+        // Find the two nodes that have no handle on `DialogParts`.
+        let title_bar = app
+            .world_mut()
+            .query_filtered::<Entity, With<DialogTitleBar>>()
+            .single(app.world())
+            .expect("a titled dialog has a title bar");
+        let title = app
+            .world_mut()
+            .query_filtered::<Entity, With<DialogTitle>>()
+            .single(app.world())
+            .expect("a titled dialog has a title");
+
+        app.world_mut().insert_resource(ColorPalette::light());
+        app.update();
+
+        let light = ColorPalette::light();
+        let w = app.world();
+        assert_eq!(
+            w.get::<BackgroundColor>(parts.backdrop).unwrap().0,
+            light.scrim,
+            "the backdrop kept the old theme"
+        );
+        assert_eq!(
+            w.get::<BackgroundColor>(parts.card).unwrap().0,
+            light.card,
+            "the card kept the old theme"
+        );
+        assert_eq!(
+            *w.get::<BorderColor>(parts.card).unwrap(),
+            BorderColor::all(light.border),
+            "the card border kept the old theme"
+        );
+        assert_eq!(
+            *w.get::<BorderColor>(title_bar).unwrap(),
+            BorderColor::all(light.border),
+            "the title rule kept the old theme"
+        );
+        assert_eq!(
+            w.get::<TextColor>(title).unwrap().0,
+            light.foreground,
+            "the title text kept the old theme"
+        );
+    }
+
+    /// An untitled dialog has no title row, and repainting must not assume one.
+    ///
+    /// `title` and `closable` are both optional, so the two marked nodes may
+    /// not exist. A `single()` in the system rather than a loop would panic
+    /// here — on a dialog shape the crate explicitly supports.
+    #[test]
+    fn repainting_an_untitled_dialog_touches_only_what_exists() {
+        use super::super::DialogPlugin;
+
+        let mut app = App::new();
+        // `DialogPlugin` brings `SvgPlugin`, whose loader needs `Assets<_>`.
+        // Added here rather than reaching for a bare `ThemePlugin`, because
+        // the run condition that gates the repaint is part of what is under
+        // test and only the real plugin registers it.
+        app.add_plugins(MinimalPlugins)
+            .add_plugins(bevy::asset::AssetPlugin::default())
+            .add_plugins(bevy::image::ImagePlugin::default())
+            // `dismiss_on_escape` reads `KeyboardInput`, and an unregistered
+            // message fails system-param validation outright rather than
+            // reading empty.
+            .add_plugins(bevy::input::InputPlugin)
+            .add_plugins(DialogPlugin)
+            .insert_resource(ColorPalette::dark());
+
+        let world = app.world_mut();
+        let mut state: SystemState<(Commands, DialogStyle)> = SystemState::new(world);
+        let parts = {
+            let (mut commands, style) = state.get(world).expect("theme resources present");
+            spawn_dialog(
+                &mut commands,
+                &style,
+                DialogConfig {
+                    title: None,
+                    closable: false,
+                    ..default()
+                },
+            )
+        };
+        state.apply(world);
+        app.update();
+
+        app.world_mut().insert_resource(ColorPalette::light());
+        app.update();
+
+        assert_eq!(
+            app.world().get::<BackgroundColor>(parts.card).unwrap().0,
+            ColorPalette::light().card,
+            "an untitled dialog did not repaint"
         );
     }
 }

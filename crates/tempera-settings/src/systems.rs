@@ -5,7 +5,7 @@ use bevy::prelude::*;
 use tempera::theme::ColorPalette;
 
 use crate::layout::SettingsLayout;
-use crate::node::{SettingsBody, SettingsDialog, SettingsOpen, SidebarEntry};
+use crate::node::{SettingsBody, SettingsDialog, SettingsOpen, SettingsSidebar, SidebarEntry};
 use crate::tab::{ActiveTab, TabBody, TabId};
 
 /// Show the active tab's body and hide the rest.
@@ -79,7 +79,11 @@ pub(crate) fn repaint_sidebar(
     mut entries: Query<(&SidebarEntry, &Interaction, &mut BackgroundColor)>,
     mut texts: Query<&mut TextColor>,
 ) {
-    if changed.is_empty() && added.is_empty() {
+    // The palette test is not optional bookkeeping. A theme swap makes every
+    // entry stale at once, and that is not a fact about any entity — so it
+    // cannot appear in `changed` or `added`, and without it the sidebar keeps
+    // the old theme's accent until the user happens to click a different tab.
+    if changed.is_empty() && added.is_empty() && !palette.is_changed() {
         return;
     }
 
@@ -210,6 +214,34 @@ pub(crate) fn scroll_body(
             if let Ok(kids) = children.get(entity) {
                 stack.extend(kids.iter());
             }
+        }
+    }
+}
+
+/// Repaint the sidebar's own surface — its fill and its dividing rule.
+///
+/// Separate from [`repaint_sidebar`], which paints the *entries*. The entries
+/// change on tab selection and hover; the surface changes only when the theme
+/// does, so folding them together would run the hierarchy walk on every hover
+/// to repaint two values that could not have moved.
+///
+/// tempera's dialog repaints its own backdrop and card. This is the one
+/// surface that belongs to this crate rather than to the dialog, so it is the
+/// one the dialog cannot reach.
+pub(crate) fn repaint_sidebar_surface(
+    palette: Res<ColorPalette>,
+    mut sidebars: Query<(&mut BackgroundColor, &mut BorderColor), With<SettingsSidebar>>,
+) {
+    for (mut bg, mut border) in &mut sidebars {
+        if bg.0 != palette.background {
+            bg.0 = palette.background;
+        }
+        // `UiRect::right` at spawn, so only that edge is drawn — but the
+        // colour is set on all four, and re-setting all four keeps this
+        // agreeing with the spawn site rather than quietly differing from it.
+        let want = BorderColor::all(palette.border);
+        if *border != want {
+            *border = want;
         }
     }
 }
