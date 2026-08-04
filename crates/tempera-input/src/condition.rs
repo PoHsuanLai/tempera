@@ -54,10 +54,20 @@
 use bevy::ecs::schedule::{BoxedCondition, SystemCondition};
 use bevy::prelude::*;
 
-/// Gate on application state: this command applies only when the condition
-/// holds.
+/// Gate on application state: this applies only when the condition holds.
 ///
-/// A command with no `When` is unconditional.
+/// An entity with no `When` is unconditional.
+///
+/// # Not only for commands
+///
+/// A command fires when its chord is pressed *and* its `When` passes. A
+/// context-menu row is collected when its `When` passes. An inspector section
+/// shows when its `When` passes. Same question — "does this apply right now?"
+/// — so it is one type, sitting on whatever entity is asking.
+///
+/// `context_menu::VisibleWhen` was an independent second implementation of
+/// exactly this, down to the field names and the errors-are-false rule. It is
+/// now an alias.
 #[derive(Component)]
 pub struct When {
     condition: BoxedCondition,
@@ -104,6 +114,30 @@ impl When {
             }
         }
     }
+}
+
+/// Evaluate the `When` on `entity`, if it has one. No gate means `true`.
+///
+/// # Why the component is detached and put back
+///
+/// A condition is a `System`: running it needs `&mut` on the condition and
+/// `&World` at the same moment, and those two borrows cannot both come from
+/// one world. Taking the component out for the duration makes them disjoint.
+///
+/// Both callers arrived at this dance independently and wrote it twice. It
+/// belongs with the type — the borrow problem is a property of `When`, not of
+/// whoever is asking.
+///
+/// Initialization happens here too, so a gate added at runtime works without
+/// its owner remembering to prime it.
+pub fn passes(world: &mut World, entity: Entity) -> bool {
+    let Some(mut gate) = world.entity_mut(entity).take::<When>() else {
+        return true;
+    };
+    gate.initialize(world);
+    let passed = gate.eval(world);
+    world.entity_mut(entity).insert(gate);
+    passed
 }
 
 /// Tie-break among commands whose conditions all pass. Higher wins.
@@ -179,5 +213,49 @@ mod tests {
     fn priority_orders_and_defaults_to_zero() {
         assert!(Priority(30) > Priority(10));
         assert_eq!(Priority::default(), Priority(0));
+    }
+    #[test]
+    fn an_entity_with_no_gate_passes() {
+        // Absence means unconditional — a menu row or command that never
+        // declared a `When` must not be filtered out.
+        let mut world = World::new();
+        let entity = world.spawn_empty().id();
+        assert!(passes(&mut world, entity));
+    }
+
+    #[test]
+    fn passes_evaluates_a_gate_in_place_and_leaves_it_attached() {
+        // The component is detached to satisfy the borrow checker and put
+        // back. Losing it would silently make the entity unconditional from
+        // the second evaluation onward.
+        let mut world = World::new();
+        world.init_resource::<Playing>();
+        let entity = world.spawn(When::new(is_playing)).id();
+
+        assert!(!passes(&mut world, entity), "starts false");
+        assert!(
+            world.entity(entity).contains::<When>(),
+            "the gate must survive its own evaluation"
+        );
+
+        world.resource_mut::<Playing>().0 = true;
+        assert!(passes(&mut world, entity), "and still works after");
+    }
+
+    #[test]
+    fn passes_initializes_a_gate_added_after_the_fact() {
+        // A gate inserted at runtime has never been primed. `passes` does it,
+        // so its owner does not have to remember.
+        let mut world = World::new();
+        world.init_resource::<Playing>();
+        world.resource_mut::<Playing>().0 = true;
+        let entity = world.spawn_empty().id();
+
+        world.entity_mut(entity).insert(When::new(is_playing));
+
+        assert!(
+            passes(&mut world, entity),
+            "an uninitialized gate must be primed, not treated as false"
+        );
     }
 }
