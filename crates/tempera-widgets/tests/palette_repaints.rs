@@ -319,3 +319,43 @@ fn a_tooltip_popup_does_not_outlive_a_hover() {
          change and needs a repaint system like the widgets above"
     );
 }
+
+/// The progress bar's *other* system still works.
+///
+/// Not a theme test, and it is here because this PR renamed that system. It
+/// had no coverage at all, so the rename could have detached it from the
+/// schedule and every test above would still have passed — the colours would
+/// repaint and the bar would simply never move again.
+#[test]
+fn a_progress_bars_fill_still_tracks_its_value() {
+    use tempera::progress::{
+        ProgressFill, ProgressPlugin, ProgressStyle, ProgressValue, spawn_progress,
+    };
+
+    let mut app = app();
+    app.add_plugins(ProgressPlugin);
+
+    let world = app.world_mut();
+    let mut state: SystemState<(Commands, ProgressStyle)> = SystemState::new(world);
+    let bar = {
+        let (mut commands, style) = state.get(world).expect("theme resources present");
+        spawn_progress(&mut commands, &style, 200.0, 0.25)
+    };
+    state.apply(world);
+    app.update();
+
+    app.world_mut().entity_mut(bar).insert(ProgressValue(0.75));
+    app.update();
+
+    let width = app
+        .world_mut()
+        .query_filtered::<&Node, With<ProgressFill>>()
+        .single(app.world())
+        .expect("one fill")
+        .width;
+    assert_eq!(
+        width,
+        Val::Percent(75.0),
+        "the fill stopped following its value"
+    );
+}

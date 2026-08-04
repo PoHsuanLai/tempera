@@ -75,7 +75,12 @@ pub fn spawn_progress(
     id
 }
 
-fn repaint_progress(
+/// Resize the fill to match the value.
+///
+/// Named for what it writes — `Node.width` — because the widget's *other*
+/// system writes its colours, and two functions called `repaint_*` on one
+/// widget is a coin toss over which one you are reading.
+fn resize_progress_fill(
     bars: Query<(&ProgressValue, &Children), (With<Progress>, Changed<ProgressValue>)>,
     mut fills: Query<&mut Node, With<ProgressFill>>,
 ) {
@@ -95,13 +100,14 @@ fn repaint_progress(
     }
 }
 
-/// Repaint the track and the fill *colours*.
+/// Repaint the track and the fill.
 ///
-/// Distinct from `repaint_progress`, which resizes the fill when the value
-/// changes — same widget, different input, and folding them together would run
-/// a width recalculation on every theme change and a colour write on every
-/// value change.
-fn recolour_progress(
+/// Separate from [`resize_progress_fill`] because the two answer to different
+/// inputs: this runs when the *theme* moves, that one when the *value* does.
+/// One system would need `Changed<ProgressValue> || palette_changed` and would
+/// then recalculate a width on every theme swap and rewrite two colours on
+/// every value tick — each doing the other's work for the other's trigger.
+fn repaint_progress(
     palette: Res<crate::theme::ColorPalette>,
     mut tracks: Query<&mut BackgroundColor, (With<Progress>, Without<ProgressFill>)>,
     mut fills: Query<&mut BackgroundColor, With<ProgressFill>>,
@@ -128,8 +134,8 @@ impl Plugin for ProgressPlugin {
         app.add_systems(
             Update,
             (
-                repaint_progress,
-                recolour_progress.run_if(crate::theme::palette_changed),
+                resize_progress_fill,
+                repaint_progress.run_if(crate::theme::palette_changed),
             ),
         );
     }
