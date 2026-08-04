@@ -60,10 +60,69 @@ impl Default for MenuTokens {
             item_padding_x: 10.0,
             corner_radius: 6.0,
             border_width: 1.0,
+            // Placeholders only. `Default` cannot see a palette, and these
+            // three are palette-dependent — `from_palette` below is where the
+            // real values come from, and `sync_menu_tokens` keeps them there.
+            // Left as the dark-theme figures so a consumer that never inserts
+            // a palette still gets the appearance this crate always had.
             item_hover_bg: Color::srgba(1.0, 1.0, 1.0, 0.06),
             item_active_bg: Color::srgba(1.0, 1.0, 1.0, 0.10),
             separator: Color::srgba(1.0, 1.0, 1.0, 0.08),
         }
+    }
+}
+
+impl MenuTokens {
+    /// The row colours for a given palette, keeping the geometry as-is.
+    ///
+    /// The three were hardcoded white-alpha lifts — `srgba(1, 1, 1, 0.06)` and
+    /// friends. On a dark surface that reads as a subtle highlight; on a light
+    /// one it is white-on-white, so a hovered menu row and a select's own fill
+    /// both vanished into the background.
+    ///
+    /// [`ColorPalette::step`] is the fix rather than a second pair of
+    /// constants, because it moves *away* from the surface it is given: the
+    /// same call lifts on dark and darkens on light, so there is one number
+    /// per role instead of one per role per theme.
+    pub fn from_palette(palette: &ColorPalette) -> Self {
+        Self {
+            item_hover_bg: ColorPalette::step(palette.popover, palette.popover, HOVER_LIFT),
+            item_active_bg: ColorPalette::step(palette.popover, palette.popover, ACTIVE_LIFT),
+            separator: palette.border,
+            ..Self::default()
+        }
+    }
+}
+
+/// How far a hovered row moves from the menu surface.
+const HOVER_LIFT: f32 = 0.06;
+
+/// How far a pressed row moves. Enough to read as a second state next to
+/// [`HOVER_LIFT`], which is what the two alphas it replaces encoded.
+const ACTIVE_LIFT: f32 = 0.10;
+
+/// Keep [`MenuTokens`] in step with the palette.
+///
+/// A resource rather than a component, so this cannot be a repaint system on
+/// entities: the tokens are the *input* those systems read, and they are what
+/// goes stale. Every consumer already re-reads them (`select` even names
+/// `resource_changed::<MenuTokens>` in its run condition), so updating this
+/// one resource repaints everything downstream for free.
+pub fn sync_menu_tokens(palette: Res<ColorPalette>, mut tokens: ResMut<MenuTokens>) {
+    if !palette.is_changed() {
+        return;
+    }
+    let want = MenuTokens::from_palette(&palette);
+    // Compared before writing: `MenuTokens` is read by several run conditions
+    // via `resource_changed`, so a `DerefMut` that changed nothing would still
+    // wake all of them.
+    if tokens.item_hover_bg != want.item_hover_bg
+        || tokens.item_active_bg != want.item_active_bg
+        || tokens.separator != want.separator
+    {
+        tokens.item_hover_bg = want.item_hover_bg;
+        tokens.item_active_bg = want.item_active_bg;
+        tokens.separator = want.separator;
     }
 }
 

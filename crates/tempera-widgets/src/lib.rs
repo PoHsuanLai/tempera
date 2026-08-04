@@ -188,6 +188,7 @@ impl Plugin for TemperaPlugin {
         add_once::<tree_row::TreeRowPlugin>(app, || tree_row::TreeRowPlugin);
         add_once::<list_row::ListRowPlugin>(app, || list_row::ListRowPlugin);
         add_once::<setting_row::SettingRowPlugin>(app, || setting_row::SettingRowPlugin);
+        add_once::<select::SelectPlugin>(app, || select::SelectPlugin);
     }
 }
 
@@ -196,6 +197,82 @@ impl Plugin for TemperaPlugin {
 fn add_once<P: Plugin>(app: &mut App, ctor: impl FnOnce() -> P) {
     if !app.is_plugin_added::<P>() {
         app.add_plugins(ctor());
+    }
+}
+
+#[cfg(test)]
+mod umbrella_tests {
+    use bevy::prelude::*;
+
+    /// `TemperaPlugin` registers every widget plugin the crate ships.
+    ///
+    /// # The bug this exists for
+    ///
+    /// `select` was missing from the list for its whole life. Nothing failed
+    /// loudly: `spawn_select` builds the widget from a `SelectStyle` system
+    /// param, so a select *looked* right the moment it was spawned. Only its
+    /// systems were absent — so it never repainted on a theme change, and in
+    /// a light theme its value went white-on-white and the control read as
+    /// empty.
+    ///
+    /// Every widget's own test adds its plugin explicitly, which is exactly
+    /// why none of them could catch this — the gap is only visible to a host
+    /// that adds the umbrella and nothing else, which is what every real
+    /// consumer does.
+    ///
+    /// Listed by hand rather than derived: a `Plugin` impl cannot be
+    /// enumerated at runtime, so this is a checklist, and adding a widget
+    /// means adding a line here. That is the point — the line is the thing
+    /// that was forgotten.
+    #[test]
+    fn the_umbrella_registers_every_widget_plugin() {
+        let mut app = App::new();
+        // The umbrella's sub-plugins reach for assets and messages at build
+        // time, so the bevy floor has to be under it before it is added.
+        app.add_plugins(MinimalPlugins)
+            .add_plugins(bevy::asset::AssetPlugin::default())
+            .add_plugins(bevy::image::ImagePlugin::default())
+            .add_plugins(bevy::input::InputPlugin)
+            .add_plugins(crate::TemperaPlugin);
+
+        macro_rules! assert_added {
+            ($($p:ty),* $(,)?) => {
+                $(assert!(
+                    app.is_plugin_added::<$p>(),
+                    "`TemperaPlugin` does not add `{}` — a host that adds only \
+                     the umbrella gets the widget's spawn helper but none of \
+                     its systems",
+                    stringify!($p),
+                );)*
+            };
+        }
+
+        assert_added!(
+            crate::button::ButtonStylePlugin,
+            crate::card::CardPlugin,
+            crate::checkbox::CheckboxStylePlugin,
+            crate::checkbox_behavior::CheckboxBehaviorPlugin,
+            crate::command::CommandPlugin,
+            crate::context_menu::ContextMenuPlugin,
+            crate::cursor::CursorPlugin,
+            crate::dialog::DialogPlugin,
+            crate::dropdown_menu::DropdownMenuPlugin,
+            crate::kbd::KbdPlugin,
+            crate::list_row::ListRowPlugin,
+            crate::number_field::NumberFieldPlugin,
+            crate::progress::ProgressPlugin,
+            crate::select::SelectPlugin,
+            crate::separator::SeparatorPlugin,
+            crate::setting_row::SettingRowPlugin,
+            crate::slider::SliderStylePlugin,
+            crate::switch::SwitchStylePlugin,
+            crate::tabs::TabsPlugin,
+            crate::text_input::TextInputStylePlugin,
+            crate::toast::ToastPlugin,
+            crate::toggle_group::ToggleGroupStylePlugin,
+            crate::tooltip::TooltipPlugin,
+            crate::tree_row::TreeRowPlugin,
+        );
     }
 }
 

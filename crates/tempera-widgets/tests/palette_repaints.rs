@@ -359,3 +359,54 @@ fn a_progress_bars_fill_still_tracks_its_value() {
         "the fill stopped following its value"
     );
 }
+
+/// The menu tokens are derived from the palette, not constants.
+///
+/// Three of them were hardcoded white-alpha lifts — `srgba(1, 1, 1, 0.06)` and
+/// friends. On a dark surface that is a subtle highlight; on a light one it is
+/// white-on-white, so a hovered menu row and a select's resting fill both
+/// disappeared into the background.
+///
+/// This is the same bug as every other test in this file with one difference
+/// that matters: the stale value lives in a **resource**, not on an entity, so
+/// no per-entity repaint could ever have fixed it. Every consumer already
+/// re-reads the tokens, so correcting the one resource fixes all of them.
+#[test]
+fn the_menu_tokens_follow_the_palette() {
+    use tempera::prelude::MenuTokens;
+
+    let mut app = app();
+    app.add_plugins(bevy::input::InputPlugin)
+        .add_plugins(bevy::picking::PickingPlugin)
+        .add_plugins(bevy::picking::InteractionPlugin)
+        .add_plugins(tempera::context_menu::ContextMenuPlugin);
+    app.update();
+
+    let dark_hover = app.world().resource::<MenuTokens>().item_hover_bg;
+
+    app.world_mut().insert_resource(ColorPalette::light());
+    app.update();
+
+    let light = app.world().resource::<MenuTokens>().clone();
+    assert_ne!(
+        light.item_hover_bg, dark_hover,
+        "the hover fill did not follow the theme"
+    );
+
+    // The property that makes `step` the right tool rather than a second set
+    // of constants: on a light surface the lift must go *darker*, or the row
+    // is invisible. A hardcoded white-alpha cannot express that.
+    let surface = ColorPalette::light().popover.to_srgba();
+    let hover = light.item_hover_bg.to_srgba();
+    assert!(
+        hover.red < surface.red,
+        "on a light menu the hovered row is lighter than the menu itself, \
+         so it cannot be seen: {hover:?} vs {surface:?}"
+    );
+
+    assert_eq!(
+        light.separator,
+        ColorPalette::light().border,
+        "the separator is not reading the palette's border"
+    );
+}
