@@ -79,3 +79,27 @@ pub(crate) fn apply_card_chevron(
         }
     }
 }
+
+/// Repaint a card's surface and its title.
+///
+/// The title takes `foreground`, which inverts between palettes — so a card
+/// built in one theme and viewed in another showed a blank header rather than
+/// a mistinted one.
+pub(crate) fn repaint_cards(
+    palette: Res<crate::theme::ColorPalette>,
+    mut cards: Query<&mut BackgroundColor, With<super::Card>>,
+    mut titles: Query<&mut TextColor, With<super::CardTitle>>,
+) {
+    for mut bg in &mut cards {
+        // `card` rather than `background`, matching the spawn site: a card
+        // sits *on* the surface behind it.
+        if bg.0 != palette.card {
+            bg.0 = palette.card;
+        }
+    }
+    for mut color in &mut titles {
+        if color.0 != palette.foreground {
+            color.0 = palette.foreground;
+        }
+    }
+}

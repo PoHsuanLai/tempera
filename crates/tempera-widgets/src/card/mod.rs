@@ -34,7 +34,7 @@ mod components;
 mod spawn;
 mod systems;
 
-pub use components::{Card, CardBody, CardChevron, CardExpanded, CardHeader, CardState};
+pub use components::{Card, CardBody, CardChevron, CardExpanded, CardHeader, CardState, CardTitle};
 pub use spawn::{CardParts, CardStyle, CardTokens, spawn_card};
 
 use crate::cursor::CursorPlugin;
@@ -58,7 +58,11 @@ impl Plugin for CardPlugin {
         }
         app.init_resource::<CardTokens>().add_systems(
             Update,
-            (systems::apply_card_body, systems::apply_card_chevron),
+            (
+                systems::apply_card_body,
+                systems::apply_card_chevron,
+                systems::repaint_cards.run_if(crate::theme::palette_changed),
+            ),
         );
     }
 }
@@ -76,7 +80,11 @@ mod tests {
             .init_resource::<Assets<SvgFile>>()
             .add_systems(
                 Update,
-                (systems::apply_card_body, systems::apply_card_chevron),
+                (
+                    systems::apply_card_body,
+                    systems::apply_card_chevron,
+                    systems::repaint_cards.run_if(crate::theme::palette_changed),
+                ),
             );
         app
     }

@@ -5,7 +5,9 @@ use bevy::picking::events::{Click, Pointer};
 use bevy::prelude::*;
 use bevy_resvg::prelude::SvgFile;
 
-use super::components::{Card, CardBody, CardChevron, CardExpanded, CardHeader, CardState};
+use super::components::{
+    Card, CardBody, CardChevron, CardExpanded, CardHeader, CardState, CardTitle,
+};
 use crate::theme::{ColorPalette, ControlSize, FontHandle, Step, StyledNode, Typography};
 
 /// Sizing and art for [`Card`]s.
@@ -114,6 +116,7 @@ pub fn spawn_card(
         .id();
 
     commands.spawn((
+        CardTitle,
         Text::new(title.into()),
         style.font.text_font_bold(style.typography.sm),
         TextColor(style.palette.foreground),

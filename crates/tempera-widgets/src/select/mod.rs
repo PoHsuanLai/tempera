@@ -31,7 +31,9 @@ mod components;
 mod spawn;
 mod systems;
 
-pub use components::{Select, SelectOption, SelectOptions, SelectValue, ValueChange};
+pub use components::{
+    Select, SelectChevron, SelectDisplayText, SelectOption, SelectOptions, SelectValue, ValueChange,
+};
 pub use spawn::{SelectStyle, spawn_select};
 
 pub struct SelectPlugin;

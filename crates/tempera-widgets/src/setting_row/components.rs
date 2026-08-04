@@ -26,6 +26,14 @@ pub struct SettingRowDescription;
 #[derive(Component, Default, Debug)]
 pub struct SettingRowControl;
 
+/// Marker on a section heading's `Text`.
+///
+/// The heading node carries [`SettingSection`]; this is the text inside it.
+/// Two markers rather than one plus a child-walk, so the repaint system can
+/// name what it writes instead of re-deriving which child is the label.
+#[derive(Component, Default, Debug)]
+pub struct SettingSectionLabel;
+
 /// Marker on a section heading spawned by
 /// [`spawn_section_header`](super::spawn_section_header).
 #[derive(Component, Default, Debug)]

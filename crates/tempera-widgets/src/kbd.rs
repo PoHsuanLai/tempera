@@ -84,12 +84,14 @@ pub fn spawn_kbd(commands: &mut Commands, style: &KbdStyle, chord: impl Into<Kbd
                     border_radius: BorderRadius::all(Val::Px(4.0)),
                     ..default()
                 },
+                KbdCap,
                 BackgroundColor(style.palette.muted),
                 BorderColor::all(style.palette.border),
                 ChildOf(row),
             ))
             .with_children(|parent| {
                 parent.spawn((
+                    KbdCapText,
                     Text::new(display),
                     style.font.text_font(style.typography.xs),
                     TextColor(style.palette.muted_foreground),
@@ -101,6 +103,36 @@ pub fn spawn_kbd(commands: &mut Commands, style: &KbdStyle, chord: impl Into<Kbd
     row
 }
 
+/// Marker on one keycap, so its fill and border can be repainted.
+#[derive(Component, Default, Debug)]
+pub struct KbdCap;
+
+/// Marker on a keycap's glyph.
+#[derive(Component, Default, Debug)]
+pub struct KbdCapText;
+
+/// Repaint the caps and their glyphs.
+fn repaint_kbd(
+    palette: Res<crate::theme::ColorPalette>,
+    mut caps: Query<(&mut BackgroundColor, &mut BorderColor), With<KbdCap>>,
+    mut glyphs: Query<&mut TextColor, With<KbdCapText>>,
+) {
+    let border_want = BorderColor::all(palette.border);
+    for (mut bg, mut border) in &mut caps {
+        if bg.0 != palette.muted {
+            bg.0 = palette.muted;
+        }
+        if *border != border_want {
+            *border = border_want;
+        }
+    }
+    for mut color in &mut glyphs {
+        if color.0 != palette.muted_foreground {
+            color.0 = palette.muted_foreground;
+        }
+    }
+}
+
 pub struct KbdPlugin;
 
 impl Plugin for KbdPlugin {
@@ -108,5 +140,6 @@ impl Plugin for KbdPlugin {
         if !app.is_plugin_added::<ThemePlugin>() {
             app.add_plugins(ThemePlugin);
         }
+        app.add_systems(Update, repaint_kbd.run_if(crate::theme::palette_changed));
     }
 }
