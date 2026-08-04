@@ -1,4 +1,4 @@
-//! A row of chips for choosing a pane's page.
+//! A strip of chips for choosing a pane's page.
 //!
 //! [`page`](crate::page) says which page is showing and hides the rest; it
 //! deliberately draws no chooser. This is one — a segmented control, styled as
@@ -13,6 +13,10 @@
 //!     commands.spawn((PageStrip(pane), ChildOf(pane)));
 //! }
 //! ```
+//!
+//! A strip runs along either [`Axis`] — a horizontal mode switcher and a
+//! vertical tool rail are the same control turned ninety degrees, so they are
+//! one implementation and not two. See [`PageStripStyle::axis`].
 //!
 //! # The strip is a view
 //!
@@ -48,6 +52,7 @@ use bevy::ui::Checked;
 use bevy_resvg::prelude::{SvgColor, UiSvg};
 use tempera_theme::ColorPalette;
 
+use crate::node::Axis;
 use crate::page::{ActivePage, Page, PageIcon, PageId, PageLabel, PageOrder};
 
 /// A chooser for the pages of `0`, the pane it charts.
@@ -75,8 +80,17 @@ pub struct PageChip {
 /// so a host that inserts nothing still gets themed chips.
 #[derive(Component, Debug, Clone, Copy)]
 pub struct PageStripStyle {
-    /// Chip height, in logical pixels.
-    pub height: f32,
+    /// Which way the strip runs. [`Axis::Row`] is a horizontal mode switcher;
+    /// [`Axis::Column`] is a vertical tool rail.
+    pub axis: Axis,
+    /// Chip size **across** the strip, in logical pixels — a row's chip height,
+    /// a column's chip width.
+    ///
+    /// Named for the direction rather than the dimension because which dimension
+    /// it lands on depends on the axis, and a call site that picks the wrong one
+    /// gets no error and no visible complaint from the layout pass — only a chip
+    /// spanning the strip's full width. [`Axis::set_thickness`] resolves it.
+    pub thickness: f32,
     /// Glyph size inside a chip.
     pub icon_size: f32,
     /// Radius of the strip's two outer ends.
@@ -90,7 +104,8 @@ pub struct PageStripStyle {
 impl Default for PageStripStyle {
     fn default() -> Self {
         Self {
-            height: 24.0,
+            axis: Axis::Row,
+            thickness: 24.0,
             icon_size: 14.0,
             end_radius: 6.0,
             selected: None,
@@ -154,6 +169,7 @@ pub(crate) fn reconcile_chips(
     }
 
     for (strip_entity, strip, style, strip_children) in &strips {
+        let axis = style.axis;
         let mut wanted: Vec<Candidate> = panes
             .get(strip.0)
             .map(|kids| {
@@ -192,7 +208,18 @@ pub(crate) fn reconcile_chips(
             commands.entity(chip).despawn();
         }
 
-        let last = wanted.len().saturating_sub(1);
+        // The strip lays its chips out along its own axis. Written here rather
+        // than left to the host: a strip whose style says `Column` but whose
+        // node still flows as a row would put every chip's declared thickness
+        // on the wrong dimension, which the layout pass reports as nothing.
+        commands
+            .entity(strip_entity)
+            .entry::<Node>()
+            .and_modify(move |mut node| {
+                node.flex_direction = axis.flex_direction();
+            });
+
+        let count = wanted.len();
         for (index, want) in wanted.iter().enumerate() {
             spawn_chip(
                 &mut commands,
@@ -200,7 +227,7 @@ pub(crate) fn reconcile_chips(
                     strip: strip_entity,
                     pane: strip.0,
                     index,
-                    last,
+                    count,
                 },
                 style,
                 want,
@@ -218,32 +245,38 @@ struct Candidate<'a> {
 }
 
 /// Where a chip sits: whose child it is, which pane it writes, and its
-/// position in the row — which is what decides the end-cap rounding.
+/// position in the strip — which is what decides the end-cap rounding.
 struct Placement {
     strip: Entity,
     pane: Entity,
     index: usize,
-    last: usize,
+    count: usize,
 }
 
-/// One chip. Square inner corners, rounded outer ends, so the row reads as a
+/// One chip. Square inner corners, rounded outer ends, so the strip reads as a
 /// single pill rather than a line of separate buttons.
 fn spawn_chip(commands: &mut Commands, at: Placement, style: &PageStripStyle, page: &Candidate) {
-    let zero = Val::Px(0.0);
-    let end = Val::Px(style.end_radius);
-    // A lone chip is both first and last, and rounds all four.
-    let border_radius = BorderRadius {
-        top_left: if at.index == 0 { end } else { zero },
-        bottom_left: if at.index == 0 { end } else { zero },
-        top_right: if at.index == at.last { end } else { zero },
-        bottom_right: if at.index == at.last { end } else { zero },
-    };
-
     // The label if there is one, else the id — an inspector row reading
     // `page_chip::` and nothing else names nothing.
     let name = page
         .label
         .map_or_else(|| page.id.as_str().to_owned(), |label| label.0.to_owned());
+
+    let mut node = Node {
+        // Equal shares of the strip regardless of glyph size:
+        // `flex_basis: 0` is what makes the grow split exact. Both are on the
+        // *main* axis, so neither needs to know which axis that is.
+        flex_grow: 1.0,
+        flex_basis: Val::Px(0.0),
+        justify_content: JustifyContent::Center,
+        align_items: AlignItems::Center,
+        border_radius: style.axis.end_caps(at.index, at.count, style.end_radius),
+        ..default()
+    };
+    // The one dimension that does depend on the axis. Written through `Axis`
+    // rather than named here: on a column, `height` would be the chip's
+    // *length* and the declared size would be silently ignored.
+    style.axis.set_thickness(&mut node, style.thickness);
 
     let chip = commands
         .spawn((
@@ -251,17 +284,7 @@ fn spawn_chip(commands: &mut Commands, at: Placement, style: &PageStripStyle, pa
                 page: page.id.clone(),
                 pane: at.pane,
             },
-            Node {
-                height: Val::Px(style.height),
-                // Equal shares of the strip regardless of glyph size:
-                // `flex_basis: 0` is what makes the grow split exact.
-                flex_grow: 1.0,
-                flex_basis: Val::Px(0.0),
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                border_radius,
-                ..default()
-            },
+            node,
             BackgroundColor(Color::NONE),
             Interaction::default(),
             Name::new(format!("tempera::page_chip::{name}")),
@@ -395,6 +418,10 @@ mod tests {
 
     /// A pane with `pages` hung off it, and a strip charting it.
     fn app_with(pages: &[(&str, i32)]) -> (App, Entity, Entity) {
+        app_on(Axis::Row, pages)
+    }
+
+    fn app_on(axis: Axis, pages: &[(&str, i32)]) -> (App, Entity, Entity) {
         let mut app = App::new();
         app.init_resource::<ColorPalette>()
             .add_systems(Update, (reconcile_chips, repaint_chips).chain());
@@ -404,7 +431,14 @@ mod tests {
             app.world_mut()
                 .spawn((Page, PageId::from(*id), PageOrder(*order), ChildOf(pane)));
         }
-        let strip = app.world_mut().spawn((PageStrip(pane), ChildOf(pane))).id();
+        let strip = app
+            .world_mut()
+            .spawn((
+                PageStrip(pane),
+                PageStripStyle { axis, ..default() },
+                ChildOf(pane),
+            ))
+            .id();
         app.update();
         (app, pane, strip)
     }
@@ -498,6 +532,38 @@ mod tests {
 
         assert_ne!(radius.top_left, Val::Px(0.0));
         assert_ne!(radius.top_right, Val::Px(0.0));
+    }
+
+    #[test]
+    fn a_column_rounds_its_top_and_bottom_rather_than_its_sides() {
+        // The end caps a row and a column round are *different corners*, not
+        // the same pair renamed. Getting this wrong looks like a pill lying on
+        // its side, which no assertion on a `Val` count would notice.
+        let (app, _, strip) = app_on(Axis::Column, &[("a", 10), ("b", 20), ("c", 30)]);
+        let kids: Vec<Entity> = app.world().get::<Children>(strip).unwrap().iter().collect();
+        let radius_of = |e: Entity| app.world().get::<Node>(e).unwrap().border_radius;
+        let zero = Val::Px(0.0);
+
+        let first = radius_of(kids[0]);
+        assert_ne!(first.top_left, zero, "the first chip rounds its top");
+        assert_ne!(first.top_right, zero);
+        assert_eq!(first.bottom_left, zero, "and squares its bottom");
+
+        let last = radius_of(kids[2]);
+        assert_eq!(last.top_left, zero, "the last chip squares its top");
+        assert_ne!(last.bottom_left, zero, "and rounds its bottom");
+        assert_ne!(last.bottom_right, zero);
+    }
+
+    #[test]
+    fn a_strips_axis_reaches_its_container() {
+        // The chips' own nodes are only half of it: a column whose container
+        // still flows as a row stacks nothing.
+        let (app, _, strip) = app_on(Axis::Column, &[("a", 10), ("b", 20)]);
+        assert_eq!(
+            app.world().get::<Node>(strip).unwrap().flex_direction,
+            FlexDirection::Column
+        );
     }
 
     #[test]
