@@ -55,7 +55,6 @@
 
 use std::borrow::Cow;
 
-use bevy::ecs::schedule::{BoxedCondition, SystemCondition};
 use bevy::prelude::*;
 
 use crate::kbd::KbdChord;
@@ -165,66 +164,28 @@ pub struct MenuDisabled;
 
 /// Show this item only when the condition holds. Absent means always.
 ///
+/// An alias for [`tempera_input::When`], which is the same gate a command uses
+/// to decide whether it applies. The name stays because it reads correctly at
+/// the declaration site — a menu row is *visible* when, a command *applies*
+/// when — but there is one implementation, and a host can build a condition
+/// once and use it for both.
+///
 /// A condition is an ordinary Bevy run condition — any read-only system
-/// returning `bool` — so `.and()`, `.or()` and `not()` compose for free
-/// and the host writes typed systems rather than strings in a bespoke
-/// expression language.
+/// returning `bool` — so `.and()`, `.or()` and `not()` compose for free and the
+/// host writes typed systems rather than strings in a bespoke expression
+/// language.
 ///
 /// **It is boxed rather than a bare `fn` pointer, and that is the whole
-/// point.** A `fn(&World) -> bool` cannot capture, so an item whose
-/// visibility depends on anything known only at spawn time — a plugin id,
-/// a row index, a predicate parsed from a manifest — cannot express it,
-/// and the host ends up adding a *second* predicate component beside this
-/// one. Capture removes the reason for that second mechanism to exist.
+/// point.** A `fn(&World) -> bool` cannot capture, so an item whose visibility
+/// depends on anything known only at spawn time — a plugin id, a row index, a
+/// predicate parsed from a manifest — cannot express it, and the host ends up
+/// adding a *second* predicate component beside this one. Capture removes the
+/// reason for that second mechanism to exist.
 ///
 /// ```ignore
 /// VisibleWhen::new(is_playing.and(not(has_selection)))
 /// ```
-#[derive(Component)]
-pub struct VisibleWhen {
-    condition: BoxedCondition,
-    initialized: bool,
-}
-
-impl VisibleWhen {
-    /// Wrap a Bevy run condition.
-    pub fn new<M>(condition: impl SystemCondition<M>) -> Self {
-        Self {
-            condition: Box::new(IntoSystem::into_system(condition)),
-            initialized: false,
-        }
-    }
-
-    /// Resolve the condition's system parameters. Idempotent.
-    ///
-    /// Runs at collection time, where `&mut World` is available. Skipping
-    /// it panics inside Bevy, so [`eval`](Self::eval) refuses instead.
-    fn initialize(&mut self, world: &mut World) {
-        if !self.initialized {
-            self.condition.initialize(world);
-            self.initialized = true;
-        }
-    }
-
-    /// Evaluate against the current world.
-    ///
-    /// A condition that cannot be run returns `false`. A gate that cannot
-    /// be evaluated must not open — showing an item whose precondition is
-    /// unknown is how a "Delete" lands in a menu that has nothing selected.
-    fn eval(&mut self, world: &World) -> bool {
-        if !self.initialized {
-            error!("[tempera] menu condition evaluated before initialize(); treating as false");
-            return false;
-        }
-        match self.condition.run_readonly((), world) {
-            Ok(passed) => passed,
-            Err(e) => {
-                error!("[tempera] menu condition failed to run: {e}; treating as false");
-                false
-            }
-        }
-    }
-}
+pub use tempera_input::When as VisibleWhen;
 
 // ── spawning ─────────────────────────────────────────────────────────────
 
@@ -316,7 +277,7 @@ pub fn collect_surface(world: &mut World, surface: &str) -> Vec<MenuItemSpec> {
 fn resolve_level(world: &mut World, entities: Vec<Entity>) -> Vec<MenuItemSpec> {
     let mut visible: Vec<(MenuOrder, Entity)> = Vec::new();
     for entity in entities {
-        if !passes(world, entity) {
+        if !tempera_input::condition::passes(world, entity) {
             continue;
         }
         let order = world
@@ -333,22 +294,6 @@ fn resolve_level(world: &mut World, entities: Vec<Entity>) -> Vec<MenuItemSpec> 
         .into_iter()
         .map(|(_, entity)| lower(world, entity))
         .collect()
-}
-
-/// Evaluate an item's gate, initializing it on first use.
-///
-/// The gate is taken off the entity, run, and put back. A condition is a
-/// `System`, so running it needs `&mut` on the condition and `&World` at
-/// once — which it cannot have while still borrowed from that same world.
-/// Detaching for the duration is what makes the two borrows disjoint.
-fn passes(world: &mut World, entity: Entity) -> bool {
-    let Some(mut gate) = world.entity_mut(entity).take::<VisibleWhen>() else {
-        return true;
-    };
-    gate.initialize(world);
-    let passed = gate.eval(world);
-    world.entity_mut(entity).insert(gate);
-    passed
 }
 
 /// The keycap for a row: the live binding if it tracks a command, else the
