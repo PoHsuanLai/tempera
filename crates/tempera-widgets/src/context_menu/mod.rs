@@ -60,8 +60,8 @@
 //! and [`open_surface`] collects them. See its docs; the two paths meet at
 //! `MenuItemSpec`, so the renderer below is shared.
 
-use bevy::input_focus::InputDispatchPlugin;
 use bevy::input_focus::tab_navigation::TabNavigationPlugin;
+use bevy::input_focus::{InputDispatchPlugin, InputFocusPlugin};
 use bevy::prelude::*;
 use bevy::ui_widgets::MenuPlugin;
 use bevy::ui_widgets::popover::PopoverPlugin;
@@ -113,6 +113,15 @@ impl Plugin for ContextMenuPlugin {
         if !app.is_plugin_added::<InputDispatchPlugin>() {
             app.add_plugins(InputDispatchPlugin);
         }
+        // `InputDispatchPlugin` adds `dispatch_focused_input`, which reads an
+        // `InputFocus` resource it does not insert — `InputFocusPlugin` owns
+        // that. Adding the dispatcher alone leaves systems scheduled against a
+        // missing resource, and a missing resource fails system-parameter
+        // validation outright rather than reading empty, so the app panics on
+        // its first frame.
+        if !app.is_plugin_added::<InputFocusPlugin>() {
+            app.add_plugins(InputFocusPlugin);
+        }
         if !app.is_plugin_added::<TabNavigationPlugin>() {
             app.add_plugins(TabNavigationPlugin);
         }
@@ -125,7 +134,12 @@ impl Plugin for ContextMenuPlugin {
 
         systems::observe_submenu_hover(app);
 
-        app.add_message::<OpenContextMenu>()
+        // `paint_item_highlight` and `MenuStyle` read `MenuTokens`. It has a
+        // `Default`, but nothing was calling it — so every system below was
+        // scheduled against a resource no code path inserted, and the plugin
+        // could not be added to an app without panicking.
+        app.init_resource::<crate::menu_tokens::MenuTokens>()
+            .add_message::<OpenContextMenu>()
             .add_message::<MenuItemActivated>()
             .add_message::<MenuClosed>()
             .add_observer(systems::on_activate)
