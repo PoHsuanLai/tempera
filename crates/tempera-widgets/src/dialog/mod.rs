@@ -46,7 +46,9 @@ mod messages;
 mod spawn;
 mod systems;
 
-pub use components::{Dialog, DialogBackdrop, DialogCard, DialogClose, DialogContent};
+pub use components::{
+    Dialog, DialogBackdrop, DialogCard, DialogClose, DialogContent, DialogTitle, DialogTitleBar,
+};
 pub use messages::DialogDismissed;
 pub use spawn::{
     CARD_HEIGHT, CARD_PADDING, CARD_RADIUS, CARD_WIDTH, DialogConfig, DialogParts, DialogStyle,
@@ -65,7 +67,15 @@ impl Plugin for DialogPlugin {
         if !app.is_plugin_added::<bevy_resvg::plugin::SvgPlugin>() {
             app.add_plugins(bevy_resvg::plugin::SvgPlugin);
         }
-        app.add_message::<DialogDismissed>()
-            .add_systems(Update, systems::dismiss_on_escape);
+        app.add_message::<DialogDismissed>().add_systems(
+            Update,
+            (
+                systems::dismiss_on_escape,
+                // Unfiltered, but only on the frames the palette moved. See
+                // the system's own docs for why staleness cannot live in the
+                // query here.
+                systems::repaint_dialog_surfaces.run_if(crate::theme::palette_changed),
+            ),
+        );
     }
 }

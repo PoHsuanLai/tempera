@@ -5,7 +5,8 @@ use bevy::prelude::*;
 use crate::build::{SettingsBuildSet, SettingsCloseIcon, SettingsTitle, build_settings};
 use crate::layout::SettingsLayout;
 use crate::systems::{
-    apply_active_tab, repaint_sidebar, repaint_sidebar_hover, scroll_body, sync_visibility,
+    apply_active_tab, repaint_sidebar, repaint_sidebar_hover, repaint_sidebar_surface, scroll_body,
+    sync_visibility,
 };
 
 /// A tabbed settings dialog.
@@ -40,6 +41,9 @@ impl Plugin for TemperaSettingsPlugin {
                     apply_active_tab,
                     repaint_sidebar,
                     repaint_sidebar_hover,
+                    // Only on the frames the theme moved — the surface has no
+                    // per-entity trigger of its own.
+                    repaint_sidebar_surface.run_if(tempera::theme::palette_changed),
                     sync_visibility,
                     scroll_body,
                 )

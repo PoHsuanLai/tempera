@@ -345,3 +345,91 @@ fn the_body_scrolls_only_while_open() {
         "an open dialog scrolls"
     );
 }
+
+/// The sidebar's own surface follows a theme change.
+///
+/// Its fill and its dividing rule are written once in `build_settings`, so
+/// before this they stayed the old theme's for the life of the dialog — while
+/// the tempera dialog *around* them repainted, leaving a light card with a
+/// dark gutter down one side.
+#[test]
+fn a_palette_swap_repaints_the_sidebar_surface() {
+    use tempera::theme::ColorPalette;
+    use tempera_settings::SettingsSidebar;
+
+    let mut app = test_app();
+    app.insert_resource(ColorPalette::dark());
+    declare(&mut app, "general", "General", 0);
+    app.update();
+    app.update();
+
+    let sidebar = app
+        .world_mut()
+        .query_filtered::<Entity, With<SettingsSidebar>>()
+        .single(app.world())
+        .expect("the dialog builds a sidebar");
+
+    app.world_mut().insert_resource(ColorPalette::light());
+    app.update();
+
+    let light = ColorPalette::light();
+    assert_eq!(
+        app.world().get::<BackgroundColor>(sidebar).unwrap().0,
+        light.background,
+        "the sidebar fill kept the old theme"
+    );
+    assert_eq!(
+        *app.world().get::<BorderColor>(sidebar).unwrap(),
+        BorderColor::all(light.border),
+        "the sidebar's dividing rule kept the old theme"
+    );
+}
+
+/// The *entries* follow a theme change too.
+///
+/// A separate system from the surface, and separately broken: `repaint_sidebar`
+/// returned early unless a tab had been selected or an entry added, so a theme
+/// swap left the selected entry painted in the old accent until the user
+/// happened to click a different tab.
+#[test]
+fn a_palette_swap_repaints_the_selected_entry() {
+    use tempera::theme::ColorPalette;
+
+    let mut app = test_app();
+    app.insert_resource(ColorPalette::dark());
+    declare(&mut app, "general", "General", 0);
+    app.update();
+    app.update();
+
+    // The crate leaves `ActiveTab(None)` until a host chooses — verified, not
+    // assumed — so nothing carries the accent until this is set.
+    {
+        let mut q = app
+            .world_mut()
+            .query_filtered::<&mut ActiveTab, With<SettingsDialog>>();
+        let mut active = q.single_mut(app.world_mut()).expect("one dialog");
+        active.set("general");
+    }
+    app.update();
+
+    // The selected entry is the one painted `accent`; the others are NONE.
+    let selected = {
+        let mut q = app
+            .world_mut()
+            .query_filtered::<(Entity, &BackgroundColor), With<SidebarEntry>>();
+        let dark = ColorPalette::dark();
+        q.iter(app.world())
+            .find(|(_, bg)| bg.0 == dark.accent)
+            .map(|(e, _)| e)
+            .expect("one entry is selected and painted with the accent")
+    };
+
+    app.world_mut().insert_resource(ColorPalette::light());
+    app.update();
+
+    assert_eq!(
+        app.world().get::<BackgroundColor>(selected).unwrap().0,
+        ColorPalette::light().accent,
+        "the selected entry kept the old theme's accent"
+    );
+}

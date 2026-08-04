@@ -18,6 +18,23 @@ pub struct DialogBackdrop;
 #[derive(Component, Debug, Clone, Copy)]
 pub struct DialogCard;
 
+/// Marker on the card's title row.
+///
+/// It exists so the row's bottom border can be repainted when the palette
+/// changes. Without a marker there is no way to find the row again — it is
+/// spawned as an anonymous child of the card — and its border would stay the
+/// old theme's colour for the life of the dialog.
+#[derive(Component, Debug, Clone, Copy)]
+pub struct DialogTitleBar;
+
+/// Marker on the dialog's title text.
+///
+/// Same reason as [`DialogTitleBar`]: a `TextColor` written once at spawn
+/// cannot follow a theme change, and the text node is otherwise indistinguishable
+/// from any other `Text` in the tree.
+#[derive(Component, Debug, Clone, Copy)]
+pub struct DialogTitle;
+
 /// Marker on the optional close-button entity in the card's title row.
 #[derive(Component, Debug, Clone, Copy)]
 pub struct DialogClose;
