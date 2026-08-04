@@ -19,8 +19,8 @@ use bevy::window::PrimaryWindow;
 
 use super::ToastConfig;
 use super::components::{
-    Toast, ToastCreated, ToastDuration, ToastExternalProgress, ToastMessage, ToastNodes,
-    ToastPosition, ToastShowProgress, ToastTitle, ToastVariant,
+    Toast, ToastCreated, ToastDuration, ToastMessage, ToastNodes, ToastPosition, ToastShowProgress,
+    ToastState, ToastTitle, ToastVariant,
 };
 use crate::anim::Spring;
 use crate::theme::{ColorPalette, FontHandle, Step, Tokens, Typography};
@@ -91,21 +91,24 @@ pub(crate) fn reconcile_toast_ui(
             &ToastVariant,
             &ToastMessage,
             Option<&ToastTitle>,
-            Option<&ToastExternalProgress>,
+            Option<&ToastState>,
             Has<ToastShowProgress>,
         ),
         (With<Toast>, Without<ToastNodes>),
     >,
 ) {
     let metrics = ToastMetrics::from(&tokens);
-    for (toast, variant, message, title, external_progress, show_progress) in &toasts {
+    for (toast, variant, message, title, state, show_progress) in &toasts {
+        // A toast tracking work always gets a bar, asked for or not — it is
+        // the only thing on screen saying the work is still going.
+        let tracking = state.copied().unwrap_or_default().holds_open();
         let nodes = spawn_subtree(
             &mut commands,
             toast,
             *variant,
             message,
             title,
-            external_progress.is_some() || show_progress,
+            tracking || show_progress,
             config.width,
             &palette,
             &typography,
@@ -132,10 +135,13 @@ pub(crate) fn tick_toasts(
             Option<&mut ToastCreated>,
             &mut Spring<f32>,
             &ToastMessage,
-            Option<&ToastExternalProgress>,
+            Option<&ToastState>,
         ),
         With<Toast>,
     >,
+    // `Done` restarts the countdown, which means re-stamping `ToastCreated`
+    // exactly once — on the frame the state changed, not every frame after.
+    just_finished: Query<(), Changed<ToastState>>,
     changed_messages: Query<(&ToastNodes, &ToastMessage), Changed<ToastMessage>>,
     mut node_q: Query<&mut Node>,
     mut text_q: Query<&mut Text>,
@@ -176,9 +182,20 @@ pub(crate) fn tick_toasts(
 
     // 3. Drive each toast.
     let mut to_despawn: Vec<Entity> = Vec::new();
-    for (entity, nodes, duration, mut created, mut slide, _message, external) in &mut toasts {
-        // Stamp creation time on first sighting.
+    for (entity, nodes, duration, mut created, mut slide, _message, state) in &mut toasts {
+        let state = state.copied().unwrap_or_default();
+
+        // Stamp creation time on first sighting, and re-stamp it the frame a
+        // toast stops tracking work: `Done`'s countdown runs from *then*, not
+        // from when the toast first appeared. Without this a job that ran for
+        // minutes leaves its success message with an already-expired timer,
+        // and the message vanishes on the frame it lands.
+        let restart = state == ToastState::Done && just_finished.contains(entity);
         let created_at = match created.as_mut() {
+            Some(c) if restart => {
+                c.0 = now;
+                now
+            }
             Some(c) => c.0,
             None => {
                 commands.entity(entity).insert(ToastCreated(now));
@@ -186,8 +203,8 @@ pub(crate) fn tick_toasts(
             }
         };
 
-        // Expire check (only when no external progress is driving it).
-        if external.is_none() {
+        // Expire check. Work in flight holds the toast open indefinitely.
+        if !state.holds_open() {
             let elapsed = now - created_at;
             if elapsed >= duration.0.as_secs_f32() {
                 to_despawn.push(entity);
@@ -225,9 +242,14 @@ pub(crate) fn tick_toasts(
         if let Some(fill) = nodes.progress_fill
             && let Ok(mut node) = node_q.get_mut(fill)
         {
-            let p = match external {
-                Some(ext) => ext.0.clamp(0.0, 1.0),
-                None => {
+            // A tracked fraction wins; otherwise the bar is the countdown.
+            // Indeterminate work (`Working { progress: None }`) has neither —
+            // it holds the toast open, so a countdown would be a lie. Show a
+            // full bar rather than an empty one that never moves.
+            let p = match (state.progress(), state.holds_open()) {
+                (Some(fraction), _) => fraction.clamp(0.0, 1.0),
+                (None, true) => 1.0,
+                (None, false) => {
                     let dur = duration.0.as_secs_f32();
                     if dur <= 0.0 {
                         1.0

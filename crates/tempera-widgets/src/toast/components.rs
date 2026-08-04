@@ -39,16 +39,81 @@ impl Default for ToastDuration {
     }
 }
 
-/// Externally-driven progress (0.0..=1.0). While present, the toast
-/// will not auto-dismiss; the progress bar reflects this value
-/// instead of the countdown. Remove the component to flip back to the
-/// timed countdown ([`commands.entity(e).remove::<ToastExternalProgress>()`]).
-#[derive(Component, Clone, Copy, Debug)]
-pub struct ToastExternalProgress(pub f32);
+/// Where a toast is in its life.
+///
+/// The toast owns this. A caller reports facts — "this job is 40% done", "it
+/// finished" — and the toast decides what that means for its own bar and its
+/// own lifetime.
+///
+/// # Why a named state and not a present-or-absent component
+///
+/// This replaces `ToastExternalProgress(f32)`, which carried *two* meanings on
+/// one component: the fraction to draw, and "do not auto-dismiss". Three things
+/// followed from that conflation, and all three are fixed here:
+///
+/// - **Progress with a timeout was unrepresentable** — any fraction at all
+///   suppressed the countdown.
+/// - **Indeterminate work was unrepresentable** — holding a toast open with no
+///   percentage meant inventing a fake number.
+/// - **Finishing resumed a stale countdown.** Completion removed the component,
+///   and the timer then ran from [`ToastCreated`] — first appearance, possibly
+///   minutes earlier — so a long job's success message could vanish on the
+///   frame it appeared. [`Done`](Self::Done) re-stamps the clock instead.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq)]
+pub enum ToastState {
+    /// Counting down to auto-dismiss, over [`ToastDuration`] from
+    /// [`ToastCreated`]. The progress bar, if shown, tracks the countdown.
+    #[default]
+    Timed,
+    /// Tracking work that has not finished. Never auto-dismisses.
+    ///
+    /// `None` is indeterminate: the bar renders with nothing to say about how
+    /// far along it is. That is honest for work with no measurable total, and
+    /// it is what the previous model had no way to express.
+    Working { progress: Option<f32> },
+    /// The work finished; the toast is now an ordinary timed message.
+    ///
+    /// Distinct from [`Timed`](Self::Timed) so the tick can tell "never tracked
+    /// anything" from "just stopped tracking" — the latter needs its countdown
+    /// restarted, and the former must not have it reset from under it.
+    Done,
+}
 
-/// Marker requesting the progress bar be rendered (defaults off, to
-/// match shadcn's Sonner). External-progress toasts implicitly behave
-/// as if this were present.
+impl ToastState {
+    /// Whether this state suppresses the auto-dismiss countdown.
+    pub fn holds_open(self) -> bool {
+        matches!(self, ToastState::Working { .. })
+    }
+
+    /// The fraction to draw, if the state has one of its own.
+    ///
+    /// `Timed` and `Done` answer `None` — their bar tracks the countdown, which
+    /// is the tick's business rather than the state's. `Working` with no
+    /// progress also answers `None` and means something different: nothing is
+    /// known. [`Self::holds_open`] tells the two apart.
+    pub fn progress(self) -> Option<f32> {
+        match self {
+            ToastState::Working { progress } => progress,
+            ToastState::Timed | ToastState::Done => None,
+        }
+    }
+}
+
+/// Correlates a toast with a long-running operation, so an update can find it.
+///
+/// The id is one the caller already has — a job id, a download id, an export
+/// id. [`progress`](super::progress) creates the toast on first sight of an id
+/// and updates that same entity afterwards, so a caller never holds an
+/// `Entity` across frames.
+///
+/// Looked up by query rather than through a map: the id lives on the toast, so
+/// there is nothing to keep in step and nothing to clean up when it despawns.
+/// [`complete`](super::complete) removes it, freeing the id for reuse.
+#[derive(Component, Clone, Debug, PartialEq, Eq)]
+pub struct ProgressToast(pub String);
+
+/// Marker requesting the progress bar be rendered. Off by default; toasts in
+/// [`ToastState::Working`] behave as if this were present.
 #[derive(Component, Default, Debug)]
 pub struct ToastShowProgress;
 
@@ -74,8 +139,7 @@ pub struct ToastNodes {
     pub progress_fill: Option<Entity>,
 }
 
-/// Where on the window toasts stack. shadcn's Sonner default is
-/// bottom-right.
+/// Where on the window toasts stack. Defaults to bottom-right.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ToastPosition {
     TopLeft,
