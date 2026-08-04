@@ -281,9 +281,15 @@ pub fn name_to_keycode(name: &str) -> Option<KeyCode> {
 
 // ── display lowering ─────────────────────────────────────────────────────
 
-impl From<Chord> for tempera::kbd::KbdChord {
+/// Resolve a declarative chord into the concrete keys to draw.
+///
+/// `Chord::keys()` has already picked the platform's modifier, so every segment
+/// is a real `KeyCode` by this point — [`key_glyph`](crate::kbd::key_glyph)
+/// maps the modifier codes to the same glyphs as the side-agnostic enum, so
+/// `Cmd(KeyS)` reads `⌘ S` on macOS and `⌃ S` elsewhere.
+impl From<Chord> for crate::kbd::KbdChord {
     fn from(chord: Chord) -> Self {
-        use tempera::kbd::{KbdChord, KbdKey};
+        use crate::kbd::{KbdChord, KbdKey};
         chord
             .keys()
             .into_iter()

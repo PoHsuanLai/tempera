@@ -49,6 +49,7 @@ pub mod chord;
 pub mod command;
 pub mod condition;
 pub mod dispatch;
+pub mod kbd;
 pub mod persist;
 pub mod plugin;
 
@@ -67,5 +68,6 @@ pub use command::{
 };
 pub use condition::{Priority, When};
 pub use dispatch::{HeldClaims, dispatch_commands, drain_held_claims};
+pub use kbd::{KbdChord, KbdKey, key_glyph, modifier_glyph};
 pub use persist::{SavedKeybinds, ScopeOverrides};
 pub use plugin::{AppName, TemperaInputPlugin};
