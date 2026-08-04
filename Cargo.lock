@@ -5364,7 +5364,6 @@ dependencies = [
  "leafwing-input-manager",
  "serde",
  "serde_json",
- "tempera-widgets",
  "tracing",
 ]
 
@@ -5405,6 +5404,7 @@ dependencies = [
  "bevy_resvg",
  "bevy_ui_text_input",
  "leafwing-input-manager",
+ "tempera-input",
  "tempera-theme",
 ]
 

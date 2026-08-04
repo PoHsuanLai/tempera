@@ -78,6 +78,15 @@ tempera = { package = "tempera-widgets", path = "crates/tempera-widgets" }
 # library to do it.
 tempera-theme = { path = "crates/tempera-theme" }
 
+# Keybinds, commands, and the keyboard vocabulary a keycap is drawn from.
+#
+# `tempera-widgets` depends on this, not the other way round. `KbdChord` and the
+# glyph tables are keyboard knowledge — `⌘` for Super does not depend on a
+# palette — so they live with the crate that owns bindings, and the widget that
+# draws a chip reads them. The reverse edge existed only so `tempera-input`
+# could name one `Vec`, and it dragged the whole widget library along.
+tempera-input = { path = "crates/tempera-input" }
+
 # Bevy is unusable in pure debug. Optimize third-party deps even in dev so an
 # example stays runnable; workspace crates stay unoptimized for fast
 # incremental builds.

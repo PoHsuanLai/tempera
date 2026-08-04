@@ -18,8 +18,9 @@ serde_json.workspace = true
 # parameter, not a constant — tempera does not know it is running dawai.
 dirs.workspace = true
 tracing.workspace = true
-# Display-side only: lowering a `Chord` into keycaps for tooltips/settings.
-tempera.workspace = true
+# No `tempera` (widgets). This crate owns the keyboard vocabulary a keycap is
+# drawn from — see `kbd.rs` — so the widget library depends on it, not the
+# reverse. Nothing here draws anything.
 
 [dev-dependencies]
 # Tests drive a real `App`, so they need the ECS + scheduling internals that

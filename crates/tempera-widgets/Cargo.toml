@@ -38,9 +38,16 @@ bevy_resvg = "2.5"
 # other widget plugins (button/slider/etc.) can also install it
 # without panicking. Drop the fork when upstream merges the fix.
 bevy_ui_text_input = { git = "https://github.com/PoHsuanLai/bevy_ui_text_input.git", branch = "guard-input-dispatch" }
-# Typed keybind primitives — `ButtonlikeChord`, `ModifierKey`,
-# `KeyCode`. Used by `crate::kbd` so consumers can pass typed chords
-# instead of stringly-typed `"Cmd+S"`.
+# The keyboard vocabulary a keycap is drawn from: `KbdChord`, `KbdKey` and the
+# glyph tables, re-exported here as `tempera::kbd`.
+#
+# This edge points *this* way deliberately. `⌘` for Super is keyboard knowledge
+# with no dependency on a palette or a font, so it belongs with the crate that
+# owns bindings; the previous arrangement had `tempera-input` pulling in the
+# whole widget library to name one `Vec`.
+tempera-input.workspace = true
+# Only for doc links in `tooltip` naming `ModifierKey` / `ButtonlikeChord`. The
+# types themselves arrive through `tempera-input`.
 leafwing-input-manager = "0.21"
 bevy = { version = "0.19", default-features = false, features = [
     "bevy_ui",
