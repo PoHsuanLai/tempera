@@ -144,11 +144,14 @@ pub mod prelude {
     };
     pub use crate::theme::{ColorPalette, FontHandle, Spacing, ThemePlugin, Typography};
     pub use crate::toast::{
-        Toast, ToastConfig, ToastDismissible, ToastDuration, ToastExternalProgress, ToastMessage,
-        ToastNodes, ToastPlugin, ToastPosition, ToastShowProgress, ToastSpec, ToastTitle,
-        ToastVariant, spawn as spawn_toast, spawn_error as spawn_toast_error,
+        ProgressToast, Toast, ToastConfig, ToastDismissible, ToastDuration, ToastMessage,
+        ToastNodes, ToastPlugin, ToastPosition, ToastShowProgress, ToastSpec, ToastState,
+        ToastTitle, ToastVariant, complete as complete_toast, progress as progress_toast,
+        spawn as spawn_toast, spawn_error as spawn_toast_error,
     };
-    pub use crate::tooltip::{Tooltip, TooltipArrow, TooltipPlugin, TooltipPopup, TooltipPosition};
+    pub use crate::tooltip::{
+        Tooltip, TooltipArrow, TooltipPlugin, TooltipPopup, TooltipPosition, TooltipShortcutFor,
+    };
 }
 
 /// Aggregate plugin — registers theme + every widget.
