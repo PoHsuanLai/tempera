@@ -73,7 +73,10 @@ mod registry;
 mod request;
 mod systems;
 
-pub use components::{HasSubMenu, MenuRootMarker, SubMenuChild, SubMenuOf, TemperaMenuItem};
+pub use components::{
+    DestructiveRow, HasSubMenu, MenuItemLabel, MenuItemMutedText, MenuPopoverSurface,
+    MenuRootMarker, MenuSeparator, SubMenuChild, SubMenuOf, TemperaMenuItem,
+};
 pub use registry::{
     AppMenuExt, Destructive, MenuClosed, MenuDisabled, MenuItemMarker, MenuLabel, MenuOrder,
     MenuShortcut, MenuShortcutFor, MenuSurface, SeparatorBefore, VisibleWhen, child_item,
@@ -160,6 +163,24 @@ impl Plugin for ContextMenuPlugin {
                     systems::dismiss_on_outside_right_click,
                 )
                     .chain(),
+            )
+            // Outside the chain above: that sequence is the open/hover
+            // lifecycle and runs every frame, while this is idle until a
+            // theme actually changes. Gated rather than compare-only,
+            // because it walks every row's children.
+            //
+            // `after(sync_menu_tokens)` is load-bearing. The separator's
+            // colour comes from `MenuTokens`, which that system derives
+            // from the palette on the *same frame* the palette changes.
+            // Unordered, this read the stale token, wrote it, and was
+            // never revisited — the run condition is false on every later
+            // frame, so a one-frame race became a permanently wrong
+            // colour. `a_separator_follows_the_theme` fails without this.
+            .add_systems(
+                Update,
+                systems::repaint_menu_surfaces
+                    .after(crate::menu_tokens::sync_menu_tokens)
+                    .run_if(crate::theme::palette_changed),
             );
     }
 }
