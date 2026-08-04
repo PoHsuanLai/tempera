@@ -1726,7 +1726,7 @@ dependencies = [
 [[package]]
 name = "bevy_ui_text_input"
 version = "0.8.0"
-source = "git+https://github.com/PoHsuanLai/bevy_ui_text_input.git?branch=guard-input-dispatch#edea2389594e634d5c1b1ae2d1373d1308643afc"
+source = "git+https://github.com/PoHsuanLai/bevy_ui_text_input.git?rev=9642ffa#9642ffafa8b0d85b33100c02fa402a8e96e4177b"
 dependencies = [
  "arboard",
  "bevy",
