@@ -95,6 +95,29 @@ fn repaint_progress(
     }
 }
 
+/// Repaint the track and the fill *colours*.
+///
+/// Distinct from `repaint_progress`, which resizes the fill when the value
+/// changes — same widget, different input, and folding them together would run
+/// a width recalculation on every theme change and a colour write on every
+/// value change.
+fn recolour_progress(
+    palette: Res<crate::theme::ColorPalette>,
+    mut tracks: Query<&mut BackgroundColor, (With<Progress>, Without<ProgressFill>)>,
+    mut fills: Query<&mut BackgroundColor, With<ProgressFill>>,
+) {
+    for mut bg in &mut tracks {
+        if bg.0 != palette.muted {
+            bg.0 = palette.muted;
+        }
+    }
+    for mut bg in &mut fills {
+        if bg.0 != palette.primary {
+            bg.0 = palette.primary;
+        }
+    }
+}
+
 pub struct ProgressPlugin;
 
 impl Plugin for ProgressPlugin {
@@ -102,6 +125,12 @@ impl Plugin for ProgressPlugin {
         if !app.is_plugin_added::<ThemePlugin>() {
             app.add_plugins(ThemePlugin);
         }
-        app.add_systems(Update, repaint_progress);
+        app.add_systems(
+            Update,
+            (
+                repaint_progress,
+                recolour_progress.run_if(crate::theme::palette_changed),
+            ),
+        );
     }
 }

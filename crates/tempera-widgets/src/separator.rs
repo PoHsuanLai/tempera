@@ -40,10 +40,27 @@ pub fn spawn_separator(
                 height: h,
                 ..default()
             },
+            Separator,
             BackgroundColor(style.palette.border),
             Name::new("tempera::separator"),
         ))
         .id()
+}
+
+/// Marker on a spawned separator, so its rule can be repainted.
+#[derive(Component, Default, Debug)]
+pub struct Separator;
+
+/// Repaint the rule. One colour, and it is the whole widget.
+fn repaint_separators(
+    palette: Res<crate::theme::ColorPalette>,
+    mut rules: Query<&mut BackgroundColor, With<Separator>>,
+) {
+    for mut bg in &mut rules {
+        if bg.0 != palette.border {
+            bg.0 = palette.border;
+        }
+    }
 }
 
 pub struct SeparatorPlugin;
@@ -53,5 +70,9 @@ impl Plugin for SeparatorPlugin {
         if !app.is_plugin_added::<ThemePlugin>() {
             app.add_plugins(ThemePlugin);
         }
+        app.add_systems(
+            Update,
+            repaint_separators.run_if(crate::theme::palette_changed),
+        );
     }
 }

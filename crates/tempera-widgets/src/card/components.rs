@@ -10,6 +10,10 @@ pub struct Card;
 #[derive(Component, Default, Debug)]
 pub struct CardHeader;
 
+/// Marker on the header's title `Text`, so it can be repainted.
+#[derive(Component, Default, Debug)]
+pub struct CardTitle;
+
 /// The part a collapse hides.
 ///
 /// Its `Display` is the only thing collapsing touches, so a body keeps its

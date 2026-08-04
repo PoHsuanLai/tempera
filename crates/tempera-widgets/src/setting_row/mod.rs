@@ -53,9 +53,11 @@ use bevy::prelude::*;
 
 mod components;
 mod spawn;
+mod systems;
 
 pub use components::{
     SettingRow, SettingRowControl, SettingRowDescription, SettingRowLabel, SettingSection,
+    SettingSectionLabel,
 };
 pub use spawn::{
     SettingRowSpec, SettingRowStyle, SettingRowTokens, spawn_section_header, spawn_setting_row,
@@ -63,7 +65,7 @@ pub use spawn::{
 
 use crate::theme::ThemePlugin;
 
-/// Registers [`SettingRowTokens`]. Adds no systems.
+/// Registers [`SettingRowTokens`] and one repaint system.
 pub struct SettingRowPlugin;
 
 impl Plugin for SettingRowPlugin {
@@ -71,7 +73,12 @@ impl Plugin for SettingRowPlugin {
         if !app.is_plugin_added::<ThemePlugin>() {
             app.add_plugins(ThemePlugin);
         }
-        app.init_resource::<SettingRowTokens>();
+        app.init_resource::<SettingRowTokens>().add_systems(
+            Update,
+            // Only on the frames the theme moved: a row has no per-entity
+            // trigger of its own, so staleness lives in the run condition.
+            systems::repaint_text.run_if(crate::theme::palette_changed),
+        );
     }
 }
 

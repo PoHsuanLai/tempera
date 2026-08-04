@@ -3,6 +3,7 @@ use bevy::prelude::*;
 
 use super::components::{
     SettingRow, SettingRowControl, SettingRowDescription, SettingRowLabel, SettingSection,
+    SettingSectionLabel,
 };
 use crate::theme::{Base, ColorPalette, FontHandle, Scale, Spacing, Step, Typography};
 
@@ -217,6 +218,7 @@ pub fn spawn_section_header(
         .id();
 
     commands.spawn((
+        SettingSectionLabel,
         Text::new(text.to_string()),
         style.font.text_font(style.typography.xs),
         TextColor(style.palette.muted_foreground),

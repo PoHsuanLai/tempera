@@ -2,7 +2,9 @@ use bevy::picking::events::{Click, Pointer};
 use bevy::prelude::*;
 use bevy::ui::{ComputedNode, UiGlobalTransform};
 
-use super::components::{Select, SelectDisplayText, SelectOptions, SelectValue, ValueChange};
+use super::components::{
+    Select, SelectChevron, SelectDisplayText, SelectOptions, SelectValue, ValueChange,
+};
 use crate::context_menu::{MenuItemActivated, MenuItemSpec, MenuRequest, OpenContextMenu};
 
 /// On click of a Select trigger, build MenuItemSpecs from its
@@ -100,17 +102,40 @@ pub(crate) fn on_menu_item_activated(
 /// surface, so it takes the menu's colours.
 pub(crate) fn paint_select_hover(
     menu: Res<crate::menu_tokens::MenuTokens>,
-    mut selects: Query<(&Interaction, &mut BackgroundColor), With<Select>>,
+    palette: Res<crate::theme::ColorPalette>,
+    mut selects: Query<(&Interaction, &mut BackgroundColor, &mut BorderColor), With<Select>>,
+    mut display: Query<&mut TextColor, (With<SelectDisplayText>, Without<SelectChevron>)>,
+    mut chevrons: Query<&mut TextColor, With<SelectChevron>>,
 ) {
+    // The border and the two text nodes are painted once at spawn, so before
+    // this they kept the old theme's colours while the fill above followed
+    // `MenuTokens`. The display text takes `foreground`, which *inverts*
+    // between palettes — in a light theme it went white-on-white and the
+    // select looked empty rather than unthemed.
+    let border_want = BorderColor::all(palette.border);
+    for mut color in &mut display {
+        if color.0 != palette.foreground {
+            color.0 = palette.foreground;
+        }
+    }
+    for mut color in &mut chevrons {
+        if color.0 != palette.muted_foreground {
+            color.0 = palette.muted_foreground;
+        }
+    }
+
     let resting = menu.item_hover_bg;
     let hovered = menu.item_active_bg;
-    for (interaction, mut bg) in &mut selects {
+    for (interaction, mut bg, mut border) in &mut selects {
         let target = match interaction {
             Interaction::Hovered | Interaction::Pressed => hovered,
             Interaction::None => resting,
         };
         if bg.0 != target {
             bg.0 = target;
+        }
+        if *border != border_want {
+            *border = border_want;
         }
     }
 }
