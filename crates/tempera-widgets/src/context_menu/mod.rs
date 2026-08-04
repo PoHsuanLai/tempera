@@ -138,7 +138,11 @@ impl Plugin for ContextMenuPlugin {
         // `Default`, but nothing was calling it — so every system below was
         // scheduled against a resource no code path inserted, and the plugin
         // could not be added to an app without panicking.
+        // The tokens are derived from the palette, not constants: three of
+        // them were hardcoded white-alpha lifts that read as white-on-white
+        // in a light theme. `sync_menu_tokens` owns keeping them current.
         app.init_resource::<crate::menu_tokens::MenuTokens>()
+            .add_systems(Update, crate::menu_tokens::sync_menu_tokens)
             .add_message::<OpenContextMenu>()
             .add_message::<MenuItemActivated>()
             .add_message::<MenuClosed>()
