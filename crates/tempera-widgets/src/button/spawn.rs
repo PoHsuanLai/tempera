@@ -110,10 +110,18 @@ pub fn spawn_button_sized(
         column_gap: Val::Px(style.spacing.xs),
         border: UiRect::all(Val::Px(visuals.border_width)),
         border_radius: BorderRadius::all(Val::Px(style.spacing.corner_radius_small)),
-        // shadcn buttons are intrinsic-width. Without `FlexStart` here,
-        // a column-flex parent's default `align_items: Stretch` blows
-        // the button out to full row width.
-        align_self: AlignSelf::FlexStart,
+        // shadcn buttons are intrinsic-width: without an explicit
+        // `align_self` a column-flex parent's default `align_items: Stretch`
+        // blows the button out to the parent's full width.
+        //
+        // `Center` and not `FlexStart`, because this one property means two
+        // different things depending on the parent. In a column it is the
+        // horizontal size question above, and either value answers it. In a
+        // *row* it is vertical position, and `FlexStart` pins the button to
+        // the top edge — overriding the parent's own `align_items: Center`,
+        // which is what a toolbar sets precisely to avoid that. A 24px button
+        // in a 40px bar sat 8px high, with the row itself already correct.
+        align_self: AlignSelf::Center,
         ..default()
     };
     if size.is_icon() {
