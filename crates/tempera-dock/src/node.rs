@@ -196,6 +196,61 @@ impl Axis {
             Self::Column => size.y,
         }
     }
+
+    /// The axis at right angles to this one.
+    pub fn cross(self) -> Self {
+        match self {
+            Self::Row => Self::Column,
+            Self::Column => Self::Row,
+        }
+    }
+
+    /// Write `thickness` onto whichever of `node`'s dimensions runs *across*
+    /// this axis, leaving the other free to flex.
+    ///
+    /// This exists because writing the dimension by name is a mistake the
+    /// compiler cannot catch and a layout pass reports as nothing at all. A
+    /// child declaring `height: Px(24)` inside a row is 24 tall and shares the
+    /// width; the identical child inside a *column* is 24 **long** and spans
+    /// the full width — measured, not reasoned: three such children in a
+    /// 300×300 column come out `300×100` each, not `24×100`.
+    ///
+    /// Nothing errors, so the only defence is never naming the dimension at a
+    /// call site.
+    pub fn set_thickness(self, node: &mut Node, thickness: f32) {
+        match self {
+            // Across a row is vertical; across a column is horizontal.
+            Self::Row => node.height = Val::Px(thickness),
+            Self::Column => node.width = Val::Px(thickness),
+        }
+    }
+
+    /// The corner rounding for the item at `index` of `count` along this axis,
+    /// where only the strip's two outer ends are rounded.
+    ///
+    /// A lone item is both first and last and rounds all four corners.
+    pub fn end_caps(self, index: usize, count: usize, radius: f32) -> BorderRadius {
+        let zero = Val::Px(0.0);
+        let end = Val::Px(radius);
+        let first = index == 0;
+        let last = index + 1 >= count;
+        match self {
+            // A row rounds its left and right ends.
+            Self::Row => BorderRadius {
+                top_left: if first { end } else { zero },
+                bottom_left: if first { end } else { zero },
+                top_right: if last { end } else { zero },
+                bottom_right: if last { end } else { zero },
+            },
+            // A column rounds its top and bottom ends.
+            Self::Column => BorderRadius {
+                top_left: if first { end } else { zero },
+                top_right: if first { end } else { zero },
+                bottom_left: if last { end } else { zero },
+                bottom_right: if last { end } else { zero },
+            },
+        }
+    }
 }
 
 #[cfg(test)]
@@ -226,6 +281,71 @@ mod tests {
         let delta = Vec2::new(3.0, 7.0);
         assert_eq!(Axis::Row.delta_along(delta), 3.0);
         assert_eq!(Axis::Column.delta_along(delta), 7.0);
+    }
+
+    #[test]
+    fn thickness_lands_on_the_cross_dimension() {
+        // The whole point of `set_thickness`: a row's thickness is its
+        // height, a column's is its width, and no call site says which.
+        let mut row = Node::default();
+        Axis::Row.set_thickness(&mut row, 24.0);
+        assert_eq!(row.height, Val::Px(24.0));
+        assert_eq!(row.width, Val::Auto, "the length must stay free to flex");
+
+        let mut col = Node::default();
+        Axis::Column.set_thickness(&mut col, 24.0);
+        assert_eq!(col.width, Val::Px(24.0));
+        assert_eq!(col.height, Val::Auto);
+    }
+
+    #[test]
+    fn end_caps_round_the_two_ends_of_the_axis_they_run_along() {
+        let zero = Val::Px(0.0);
+
+        // A row rounds left and right...
+        let first = Axis::Row.end_caps(0, 3, 6.0);
+        assert_ne!(first.top_left, zero);
+        assert_ne!(first.bottom_left, zero);
+        assert_eq!(first.top_right, zero);
+        let middle = Axis::Row.end_caps(1, 3, 6.0);
+        assert_eq!(middle.top_left, zero);
+        assert_eq!(middle.top_right, zero);
+
+        // ...a column rounds top and bottom, which is a different pair of
+        // corners entirely — not the row's answer with the names swapped.
+        let top = Axis::Column.end_caps(0, 3, 6.0);
+        assert_ne!(top.top_left, zero);
+        assert_ne!(top.top_right, zero, "a column's first item rounds across");
+        assert_eq!(top.bottom_left, zero);
+        let bottom = Axis::Column.end_caps(2, 3, 6.0);
+        assert_ne!(bottom.bottom_left, zero);
+        assert_ne!(bottom.bottom_right, zero);
+        assert_eq!(bottom.top_left, zero);
+    }
+
+    #[test]
+    fn a_lone_item_rounds_all_four_corners_on_either_axis() {
+        let zero = Val::Px(0.0);
+        for axis in [Axis::Row, Axis::Column] {
+            let only = axis.end_caps(0, 1, 6.0);
+            assert_ne!(only.top_left, zero, "{axis:?}");
+            assert_ne!(only.top_right, zero, "{axis:?}");
+            assert_ne!(only.bottom_left, zero, "{axis:?}");
+            assert_ne!(only.bottom_right, zero, "{axis:?}");
+        }
+    }
+
+    #[test]
+    fn an_empty_strip_does_not_panic_on_its_end_caps() {
+        // `count` of 0 has no valid index, but a caller computing
+        // `count - 1` would underflow; `end_caps` takes the count itself.
+        let _ = Axis::Row.end_caps(0, 0, 6.0);
+    }
+
+    #[test]
+    fn crossing_an_axis_twice_returns_it() {
+        assert_eq!(Axis::Row.cross(), Axis::Column);
+        assert_eq!(Axis::Column.cross().cross(), Axis::Column);
     }
 
     #[test]
