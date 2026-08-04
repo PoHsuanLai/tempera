@@ -37,7 +37,11 @@ bevy_resvg = "2.5"
 # Fork with `InputDispatchPlugin` registration guard so tempera's
 # other widget plugins (button/slider/etc.) can also install it
 # without panicking. Drop the fork when upstream merges the fix.
-bevy_ui_text_input = { git = "https://github.com/PoHsuanLai/bevy_ui_text_input.git", branch = "guard-input-dispatch" }
+# Pinned to a rev, not the branch: a branch means `cargo update` can move
+# this under an unrelated build, and the pinned commit carries the fix that
+# stops a *space* in a text input panicking the app (blank glyphs are now
+# skipped rather than raised as `FailedToGetGlyphImage`).
+bevy_ui_text_input = { git = "https://github.com/PoHsuanLai/bevy_ui_text_input.git", rev = "9642ffa" }
 # The keyboard vocabulary a keycap is drawn from: `KbdChord`, `KbdKey` and the
 # glyph tables, re-exported here as `tempera::kbd`.
 #
