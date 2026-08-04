@@ -56,8 +56,9 @@ fn spawn_grid(
     let label_font = font.text_font(typography.sm);
 
     commands.spawn((
-        Text::new("TextInput — click to focus, type, ⌘C/V to copy/paste, Enter to submit"
-            .to_string()),
+        Text::new(
+            "TextInput — click to focus, type, ⌘C/V to copy/paste, Enter to submit".to_string(),
+        ),
         label_font.clone(),
         TextColor(palette.muted_foreground),
         ChildOf(root),
@@ -75,7 +76,10 @@ fn spawn_grid(
         &mut commands,
         &number_style,
         50.0,
-        NumberFieldRange { min: 0.0, max: 100.0 },
+        NumberFieldRange {
+            min: 0.0,
+            max: 100.0,
+        },
         5.0,
     );
     commands

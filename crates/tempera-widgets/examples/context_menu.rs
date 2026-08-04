@@ -62,9 +62,7 @@ fn open_on_right_click(
             MenuItemSpec::new("duplicate")
                 .label("Duplicate")
                 .shortcut("⌘D"),
-            MenuItemSpec::new("export")
-                .label("Export…")
-                .shortcut("⌘E"),
+            MenuItemSpec::new("export").label("Export…").shortcut("⌘E"),
             MenuItemSpec::new("locked").label("Locked Item").disabled(),
             MenuItemSpec::new("delete")
                 .label("Delete")

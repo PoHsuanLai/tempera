@@ -8,7 +8,7 @@ use std::path::PathBuf;
 
 use bevy::input::keyboard::KeyCode;
 use bevy::prelude::*;
-use bevy::render::view::screenshot::{save_to_disk, Screenshot};
+use bevy::render::view::screenshot::{Screenshot, save_to_disk};
 use leafwing_input_manager::user_input::keyboard::ModifierKey;
 use tempera::kbd::KbdChord;
 use tempera::prelude::*;
@@ -75,11 +75,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut font: ResMu
     });
 }
 
-fn spawn_palette(
-    mut commands: Commands,
-    command_style: CommandStyle,
-    palette: Res<ColorPalette>,
-) {
+fn spawn_palette(mut commands: Commands, command_style: CommandStyle, palette: Res<ColorPalette>) {
     let backdrop = commands
         .spawn((
             Node {
@@ -104,10 +100,7 @@ fn spawn_palette(
                         .label("Calendar")
                         .shortcut(KbdChord::from(ModifierKey::Super).with(KeyCode::KeyC)),
                 )
-                .item(
-                    CommandItemSpec::new("emoji")
-                        .label("Search Emoji"),
-                )
+                .item(CommandItemSpec::new("emoji").label("Search Emoji"))
                 .item(
                     CommandItemSpec::new("calculator")
                         .label("Calculator")

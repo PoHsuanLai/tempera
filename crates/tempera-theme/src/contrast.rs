@@ -128,7 +128,11 @@ impl ColorPalette {
     /// ```
     #[must_use]
     pub fn step(base: Color, surface: Color, amount: f32) -> Color {
-        let sign = if goes_lighter(base, surface) { 1.0 } else { -1.0 };
+        let sign = if goes_lighter(base, surface) {
+            1.0
+        } else {
+            -1.0
+        };
         let d = sign * amount;
         let s = base.to_srgba();
         Color::srgba(

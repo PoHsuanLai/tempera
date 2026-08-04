@@ -8,7 +8,7 @@
 use std::path::PathBuf;
 
 use bevy::prelude::*;
-use bevy::render::view::screenshot::{save_to_disk, Screenshot};
+use bevy::render::view::screenshot::{Screenshot, save_to_disk};
 use tempera::context_menu::MenuItemActivated;
 use tempera::prelude::*;
 
@@ -27,10 +27,7 @@ fn open_dropdown_flag() -> bool {
 /// Programmatically open the File dropdown one frame after spawn so
 /// the screenshot captures the popup. Bypasses the trigger to keep
 /// keyboard focus from grabbing the dropdown's first item.
-fn auto_open_dropdown(
-    mut writer: MessageWriter<OpenContextMenu>,
-    mut done: Local<bool>,
-) {
+fn auto_open_dropdown(mut writer: MessageWriter<OpenContextMenu>, mut done: Local<bool>) {
     if *done {
         return;
     }
@@ -149,7 +146,12 @@ fn spawn_grid(
     let tabs = spawn_tabs(
         &mut commands,
         &tabs_style,
-        vec!["Files".into(), "Search".into(), "Git".into(), "Debug".into()],
+        vec![
+            "Files".into(),
+            "Search".into(),
+            "Git".into(),
+            "Debug".into(),
+        ],
         0,
     );
     commands

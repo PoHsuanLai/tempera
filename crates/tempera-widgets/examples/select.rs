@@ -5,9 +5,9 @@
 use std::path::PathBuf;
 
 use bevy::prelude::*;
-use bevy::render::view::screenshot::{save_to_disk, Screenshot};
+use bevy::render::view::screenshot::{Screenshot, save_to_disk};
 use tempera::prelude::*;
-use tempera::select::{spawn_select, SelectOption, SelectStyle, ValueChange as SelectValueChange};
+use tempera::select::{SelectOption, SelectStyle, ValueChange as SelectValueChange, spawn_select};
 
 fn parse_screenshot_arg() -> Option<PathBuf> {
     let args: Vec<String> = std::env::args().collect();
@@ -105,19 +105,31 @@ fn spawn_demo(
 
     // Select — routing destinations
     let options = vec![
-        SelectOption { id: "master".into(), label: "Master".into() },
-        SelectOption { id: "bus_a".into(), label: "Bus A".into() },
-        SelectOption { id: "bus_b".into(), label: "Bus B".into() },
-        SelectOption { id: "headphones".into(), label: "Headphones".into() },
+        SelectOption {
+            id: "master".into(),
+            label: "Master".into(),
+        },
+        SelectOption {
+            id: "bus_a".into(),
+            label: "Bus A".into(),
+        },
+        SelectOption {
+            id: "bus_b".into(),
+            label: "Bus B".into(),
+        },
+        SelectOption {
+            id: "headphones".into(),
+            label: "Headphones".into(),
+        },
     ];
     let sel = spawn_select(&mut commands, &select_style, options, "master");
     commands.entity(sel).insert(ChildOf(root));
-    commands.entity(sel).observe(
-        |trigger: On<SelectValueChange>| {
+    commands
+        .entity(sel)
+        .observe(|trigger: On<SelectValueChange>| {
             let ev = trigger.event();
             info!("selected: {} ({})", ev.label, ev.value);
-        },
-    );
+        });
 
     // Second label
     commands.spawn((
@@ -129,20 +141,35 @@ fn spawn_demo(
 
     // Select — input sources
     let inputs = vec![
-        SelectOption { id: "none".into(), label: "None".into() },
-        SelectOption { id: "mic_1".into(), label: "Mic 1".into() },
-        SelectOption { id: "mic_2".into(), label: "Mic 2".into() },
-        SelectOption { id: "stereo_1_2".into(), label: "Stereo 1/2".into() },
-        SelectOption { id: "midi_keyboard".into(), label: "MIDI Keyboard".into() },
+        SelectOption {
+            id: "none".into(),
+            label: "None".into(),
+        },
+        SelectOption {
+            id: "mic_1".into(),
+            label: "Mic 1".into(),
+        },
+        SelectOption {
+            id: "mic_2".into(),
+            label: "Mic 2".into(),
+        },
+        SelectOption {
+            id: "stereo_1_2".into(),
+            label: "Stereo 1/2".into(),
+        },
+        SelectOption {
+            id: "midi_keyboard".into(),
+            label: "MIDI Keyboard".into(),
+        },
     ];
     let sel2 = spawn_select(&mut commands, &select_style, inputs, "none");
     commands.entity(sel2).insert(ChildOf(root));
-    commands.entity(sel2).observe(
-        |trigger: On<SelectValueChange>| {
+    commands
+        .entity(sel2)
+        .observe(|trigger: On<SelectValueChange>| {
             let ev = trigger.event();
             info!("input: {} ({})", ev.label, ev.value);
-        },
-    );
+        });
 
     // Third — wider select
     commands.spawn((
@@ -153,10 +180,22 @@ fn spawn_demo(
     ));
 
     let rates = vec![
-        SelectOption { id: "44100".into(), label: "44.1 kHz".into() },
-        SelectOption { id: "48000".into(), label: "48 kHz".into() },
-        SelectOption { id: "96000".into(), label: "96 kHz".into() },
-        SelectOption { id: "192000".into(), label: "192 kHz".into() },
+        SelectOption {
+            id: "44100".into(),
+            label: "44.1 kHz".into(),
+        },
+        SelectOption {
+            id: "48000".into(),
+            label: "48 kHz".into(),
+        },
+        SelectOption {
+            id: "96000".into(),
+            label: "96 kHz".into(),
+        },
+        SelectOption {
+            id: "192000".into(),
+            label: "192 kHz".into(),
+        },
     ];
     let sel3 = spawn_select(&mut commands, &select_style, rates, "48000");
     commands.entity(sel3).insert(ChildOf(root));

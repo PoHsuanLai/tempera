@@ -342,7 +342,11 @@ mod tests {
                 &palette,
                 palette.background,
             );
-            assert_eq!(v.fill_hover, Color::NONE, "an inert control filled on hover");
+            assert_eq!(
+                v.fill_hover,
+                Color::NONE,
+                "an inert control filled on hover"
+            );
             assert_eq!(v.fill_pressed, Color::NONE);
             assert_ne!(
                 v.fill_selected,
@@ -369,8 +373,7 @@ mod tests {
                 let has_colour = v.edge != Color::NONE;
                 let has_width = v.edge_width > 0.0;
                 assert_eq!(
-                    has_colour,
-                    has_width,
+                    has_colour, has_width,
                     "{surface:?}: edge colour and width disagree"
                 );
                 assert_eq!(has_width, surface == Surface::Outline);
