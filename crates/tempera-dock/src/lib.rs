@@ -117,9 +117,9 @@ pub use page::{ActivePage, Page, PageIcon, PageId, PageLabel, PageOrder, page_is
 pub use page_strip::{PageChip, PageStrip, PageStripStyle};
 pub use plugin::TemperaDockPlugin;
 pub use registry::{PaneRegistry, pane_exists};
+pub use resize::{DividerStyle, redistribute_flex};
 pub use section::{
     Row, RowHeight, Section, SectionBody, SectionCell, SectionFrame, SectionId, SectionLabel,
     SectionOrder, SectionRow, SectionStack, SectionStyle, add_row,
 };
-pub use resize::{DividerStyle, redistribute_flex};
 pub use tree::{DockLayout, DockTree, TreeError};
