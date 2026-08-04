@@ -51,6 +51,19 @@ impl Plugin for TemperaDockPlugin {
                 Update,
                 (apply_visibility, apply_active_page).after(DockBuildSet),
             )
+            // Chips after the build, so a strip spawned into a pane on the
+            // same frame finds that pane's children already parented; and
+            // reconcile before repaint, so a new chip is painted on the frame
+            // it appears rather than one frame later.
+            .add_systems(
+                Update,
+                (
+                    crate::page_strip::reconcile_chips,
+                    crate::page_strip::repaint_chips,
+                )
+                    .chain()
+                    .after(DockBuildSet),
+            )
             // Before the build: a host positioning its first title-bar
             // control reads the inset during layout, so it has to be current
             // by then.
