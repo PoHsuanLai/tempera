@@ -2,8 +2,8 @@
 //! `bevy_ui_text_input`. The repaint system tints the border on focus
 //! and hover.
 
-use bevy::input_focus::InputFocus;
 use bevy::ecs::query::QueryData;
+use bevy::input_focus::InputFocus;
 use bevy::prelude::*;
 use bevy::ui::InteractionDisabled;
 
@@ -49,17 +49,22 @@ pub(crate) fn repaint_text_input(
 ) {
     let focused = focus.get();
     for mut input in &mut inputs {
-        let (entity, interaction, variant, disabled) =
-            (input.entity, input.interaction, input.variant, input.disabled);
+        let (entity, interaction, variant, disabled) = (
+            input.entity,
+            input.interaction,
+            input.variant,
+            input.disabled,
+        );
         let (bg, border) = (&mut input.bg, &mut input.border);
         let alpha = if disabled { 0.5 } else { 1.0 };
         let hovered =
             !disabled && matches!(interaction, Interaction::Hovered | Interaction::Pressed);
 
-        let paint = variant
-            .copied()
-            .unwrap_or_default()
-            .paint(&palette, hovered, focused == Some(entity));
+        let paint =
+            variant
+                .copied()
+                .unwrap_or_default()
+                .paint(&palette, hovered, focused == Some(entity));
 
         let want_bg = BackgroundColor(with_alpha(paint.fill, alpha));
         if **bg != want_bg {
@@ -139,7 +144,11 @@ mod tests {
 
         let palette = app.world().resource::<crate::theme::ColorPalette>().clone();
         let (fill, edge) = colours(&app, e);
-        assert_eq!(fill, palette.muted.to_srgba(), "the system did not paint the fill");
+        assert_eq!(
+            fill,
+            palette.muted.to_srgba(),
+            "the system did not paint the fill"
+        );
         assert_eq!(edge, Color::NONE.to_srgba());
     }
 

@@ -19,6 +19,21 @@ name = "tempera"
 # The design tokens. Re-exported as `tempera::theme`, so a consumer that wants
 # widgets and tokens together keeps writing one path.
 tempera-theme.workspace = true
+# Icons. Tempera's icons are SVG — a widget glyph is monochrome line art
+# that has to scale with `Metrics` and tint from the palette, which is what
+# a vector is for and what a bitmap is not.
+#
+# resvg is under this, but the part that matters is the *asset loader*:
+# icons resolve lazily through `AssetServer`, cached and refcounted, rather
+# than a startup pass that rasterises every icon whether or not it is ever
+# shown.
+#
+# Not optional, and not behind a feature. `ButtonContent::Icon` holds a
+# `UiSvg`, so a feature flag would change an enum variant's *type* — every
+# call site would break when the flag flipped, which is the opposite of what
+# a feature is for. If tempera ever needs to accept a bitmap, that is a new
+# arm on an icon enum, not a cfg.
+bevy_resvg = "2.5"
 # Fork with `InputDispatchPlugin` registration guard so tempera's
 # other widget plugins (button/slider/etc.) can also install it
 # without panicking. Drop the fork when upstream merges the fix.

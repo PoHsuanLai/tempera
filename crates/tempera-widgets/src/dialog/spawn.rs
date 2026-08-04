@@ -1,6 +1,7 @@
 use bevy::ecs::system::SystemParam;
 use bevy::picking::events::{Click, Pointer};
 use bevy::prelude::*;
+use bevy_resvg::prelude::{SvgColor, SvgFile, UiSvg};
 
 use super::components::{Dialog, DialogBackdrop, DialogCard, DialogClose, DialogContent};
 use super::messages::DialogDismissed;
@@ -52,7 +53,7 @@ pub struct DialogConfig {
     pub width: f32,
     pub height: f32,
     pub closable: bool,
-    pub close_icon: Option<Handle<Image>>,
+    pub close_icon: Option<Handle<SvgFile>>,
     /// Start visible (`Visibility::Inherited`) or hidden
     /// (`Visibility::Hidden`). Default: hidden — toggle to inherited
     /// when ready to show.
@@ -94,7 +95,7 @@ impl DialogConfig {
     /// Enable the close button, supplying the icon to render inside it.
     /// Calling this implies `closable = true`.
     #[must_use]
-    pub fn closable_with_icon(mut self, icon: Handle<Image>) -> Self {
+    pub fn closable_with_icon(mut self, icon: Handle<SvgFile>) -> Self {
         self.closable = true;
         self.close_icon = Some(icon);
         self
@@ -290,7 +291,8 @@ pub fn spawn_dialog(
                 )
                 .id();
             commands.spawn((
-                ImageNode::new(icon).with_color(style.palette.muted_foreground),
+                UiSvg(icon),
+                SvgColor(style.palette.muted_foreground),
                 Node {
                     width: Val::Px(12.0),
                     height: Val::Px(12.0),

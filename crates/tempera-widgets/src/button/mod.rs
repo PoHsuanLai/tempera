@@ -63,6 +63,11 @@ impl Plugin for ButtonStylePlugin {
         if !app.is_plugin_added::<BevyButtonPlugin>() {
             app.add_plugins(BevyButtonPlugin);
         }
+        // Owns the SVG asset loader and the `UiSvg` → `ImageNode` step that
+        // makes an icon child visible at all.
+        if !app.is_plugin_added::<bevy_resvg::plugin::SvgPlugin>() {
+            app.add_plugins(bevy_resvg::plugin::SvgPlugin);
+        }
 
         app.add_systems(
             Update,

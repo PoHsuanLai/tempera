@@ -1,6 +1,7 @@
 use bevy::ecs::system::SystemParam;
 use bevy::input_focus::tab_navigation::TabIndex;
 use bevy::prelude::*;
+use bevy_resvg::prelude::{SvgColor, SvgFile, UiSvg};
 use bevy_ui_text_input::actions::{TextInputAction, TextInputEdit};
 use bevy_ui_text_input::{
     TextInputContents, TextInputMode, TextInputNode, TextInputPrompt, TextInputQueue,
@@ -124,7 +125,7 @@ pub fn spawn_text_input_with_icon(
     style: &TextInputStyle,
     initial: impl Into<String>,
     placeholder: impl Into<String>,
-    icon: Handle<Image>,
+    icon: Handle<SvgFile>,
 ) -> TextInputHandle {
     spawn_text_input_inner(
         commands,
@@ -149,7 +150,7 @@ fn spawn_text_input_inner(
     style: &TextInputStyle,
     initial: impl Into<String>,
     placeholder: impl Into<String>,
-    icon: Option<Handle<Image>>,
+    icon: Option<Handle<SvgFile>>,
     variant: TextInputVariant,
 ) -> TextInputHandle {
     let initial = initial.into();
@@ -193,7 +194,8 @@ fn spawn_text_input_inner(
 
     if let Some(icon) = icon {
         commands.spawn((
-            ImageNode::new(icon).with_color(style.palette.muted_foreground),
+            UiSvg(icon),
+            SvgColor(style.palette.muted_foreground),
             Node {
                 width: Val::Px(ICON_SIZE),
                 height: Val::Px(ICON_SIZE),

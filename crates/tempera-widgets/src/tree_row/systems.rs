@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy_resvg::prelude::{SvgColor, UiSvg};
 
 use super::components::{
     ChevronState, TreeRow, TreeRowChevron, TreeRowExpanded, TreeRowHeader, TreeRowLabel,
@@ -20,8 +21,8 @@ type ChevronRow<'a> = (&'a Children, Has<TreeRowExpanded>);
 /// Rows whose chevron may be stale.
 type RepaintedChevrons = Or<(Changed<TreeRowExpanded>, Added<TreeRow>)>;
 
-/// A chevron node, and its art if it has any yet.
-type ChevronArt<'a> = (Entity, Option<&'a mut ImageNode>);
+/// A chevron node, and its declared art / tint if it has any yet.
+type ChevronArt<'a> = (Entity, Option<&'a UiSvg>, Option<&'a SvgColor>);
 
 /// Paint the hover fill and lift the label toward the foreground.
 ///
@@ -63,13 +64,18 @@ pub(crate) fn repaint_rows(
 ///
 /// Runs on change only. A row whose chevron art has not loaded yet keeps
 /// its reserved slot and picks the image up on a later frame.
+///
+/// Declares `UiSvg` (which glyph) and `SvgColor` (what colour);
+/// `bevy_resvg` owns the resulting `ImageNode` and is the only thing that
+/// writes it. Two writers on one field would make the tint depend on system
+/// ordering — see the note on [`crate::button::systems::repaint_icon_tints`].
 pub(crate) fn repaint_chevrons(
     tokens: Res<TreeRowTokens>,
     palette: Res<ColorPalette>,
     changed: Query<ChevronRow, RepaintedChevrons>,
     mut removed: RemovedComponents<TreeRowExpanded>,
     all_rows: Query<ChevronRow>,
-    mut chevrons: Query<ChevronArt, With<TreeRowChevron>>,
+    chevrons: Query<ChevronArt, With<TreeRowChevron>>,
     mut commands: Commands,
 ) {
     let mut paint = |children: &Children, expanded: bool| {
@@ -82,20 +88,18 @@ pub(crate) fn repaint_chevrons(
             return;
         };
         for child in children.iter() {
-            let Ok((entity, image)) = chevrons.get_mut(child) else {
+            let Ok((entity, art, tint)) = chevrons.get(child) else {
                 continue;
             };
-            match image {
-                Some(mut image) => {
-                    image.image = handle.clone();
-                    image.color = palette.muted_foreground;
-                }
-                // The slot was reserved before the art existed; fill it in.
-                None => {
-                    commands.entity(entity).insert(
-                        ImageNode::new(handle.clone()).with_color(palette.muted_foreground),
-                    );
-                }
+            // Write only on a change: `bevy_resvg` re-renders on
+            // `Changed<UiSvg>` and re-tints on `Changed<SvgColor>`.
+            if art.is_none_or(|a| a.0 != handle) {
+                commands.entity(entity).insert(UiSvg(handle.clone()));
+            }
+            if tint.is_none_or(|t| t.0 != palette.muted_foreground) {
+                commands
+                    .entity(entity)
+                    .insert(SvgColor(palette.muted_foreground));
             }
         }
     };

@@ -17,6 +17,7 @@
 //! shape `tempera-input` uses for commands and `tempera-dock` for panes.
 
 use bevy::prelude::*;
+use bevy_resvg::prelude::SvgFile;
 
 /// Marker: this entity declares a settings tab.
 ///
@@ -71,10 +72,10 @@ pub struct TabOrder(pub i32);
 /// Optional icon for the sidebar entry.
 ///
 /// Outside [`SettingsTab`]'s require chain deliberately: not every tab has
-/// one, and there is no useful default `Handle<Image>` to invent for those
+/// one, and there is no useful default `Handle<SvgFile>` to invent for those
 /// that do not.
 #[derive(Component, Debug, Clone)]
-pub struct TabIcon(pub Handle<Image>);
+pub struct TabIcon(pub Handle<SvgFile>);
 
 /// Marker on the node a tab's content parents into.
 ///
