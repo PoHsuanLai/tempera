@@ -56,7 +56,24 @@ impl Plugin for TemperaInputPlugin {
                 PostStartup,
                 (apply_saved_bindings, strip_unbound_keybinds).chain(),
             )
-            .add_systems(Update, dispatch_commands.in_set(CommandDispatch))
+            .add_message::<crate::capture::ChordCaptured>()
+            // Before dispatch, and dispatch is suppressed while it runs.
+            // Recording `Cmd+S` must not *also* save: the recorder and the
+            // dispatcher read the same `ButtonInput`, so without this a user
+            // rebinding a shortcut fires whatever that shortcut currently
+            // does, every time they try to change it.
+            .add_systems(
+                Update,
+                crate::capture::capture_chord
+                    .run_if(resource_exists::<crate::capture::ChordCapture>)
+                    .before(CommandDispatch),
+            )
+            .add_systems(
+                Update,
+                dispatch_commands
+                    .in_set(CommandDispatch)
+                    .run_if(not(resource_exists::<crate::capture::ChordCapture>)),
+            )
             // Losing the window is the one way a held command can miss its
             // release: the key comes up while another app has focus, so we
             // never see it. Drain instead of stranding the claim.
