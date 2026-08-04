@@ -196,3 +196,51 @@ fn the_registry_indexes_every_registered_command() {
     assert_eq!(registry.len(), 1);
     assert!(registry.get("file.save").is_some());
 }
+
+#[test]
+fn a_command_does_not_fire_while_a_chord_is_being_recorded() {
+    // The seam this file exists for. `capture_chord` and `dispatch_commands`
+    // read the same `ButtonInput`, so without the run condition on dispatch a
+    // user rebinding Cmd+S would *save* on every attempt to change it — the
+    // recorder would work perfectly and the feature would still be unusable.
+    //
+    // A unit test on either system alone cannot see this: it is a property of
+    // how the plugin schedules them together.
+    let mut app = test_app();
+    register_save(&mut app);
+
+    app.world_mut()
+        .init_resource::<tempera_input::ChordCapture>();
+
+    press_chord(&mut app, &cmd(KeyCode::KeyS));
+    frame(&mut app);
+
+    assert!(
+        app.world().resource::<Fired>().0.is_empty(),
+        "the command fired while its own shortcut was being re-recorded"
+    );
+}
+
+#[test]
+fn dispatch_resumes_once_the_recording_ends() {
+    // The other half: suppression must be scoped to the recording, or the
+    // first rebind would leave every shortcut dead for the rest of the
+    // session.
+    let mut app = test_app();
+    register_save(&mut app);
+
+    app.world_mut()
+        .init_resource::<tempera_input::ChordCapture>();
+    frame(&mut app);
+    app.world_mut()
+        .remove_resource::<tempera_input::ChordCapture>();
+
+    press_chord(&mut app, &cmd(KeyCode::KeyS));
+    frame(&mut app);
+
+    assert_eq!(
+        app.world().resource::<Fired>().0,
+        vec!["save"],
+        "dispatch stayed suppressed after the recording ended"
+    );
+}
