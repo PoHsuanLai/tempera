@@ -94,7 +94,7 @@ pub mod prelude {
     pub use crate::dropdown_menu::{
         DropdownMenuPlugin, DropdownStyle, DropdownTrigger, spawn_dropdown,
     };
-    pub use crate::kbd::{KbdPlugin, KbdStyle, spawn_kbd};
+    pub use crate::kbd::{KbdColors, KbdPlugin, KbdStyle, Repaint, spawn_kbd, spawn_kbd_in};
     pub use crate::list_row::{
         ListRow, ListRowBadge, ListRowId, ListRowLead, ListRowMeta, ListRowParts, ListRowPlugin,
         ListRowSpec, ListRowStyle, ListRowSubtitle, ListRowTitle, ListRowTokens, ListRowTrail,
