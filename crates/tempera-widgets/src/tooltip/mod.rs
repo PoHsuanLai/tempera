@@ -261,4 +261,105 @@ mod tests {
 
         assert_eq!(glyphs(&app, late), Some(vec!["B".to_owned()]));
     }
+    #[test]
+    fn a_tooltips_caps_are_the_same_shape_as_any_other() {
+        // Guards the *call*, not the callee. `spawn_kbd_in`'s own tests check
+        // what it produces; nothing there notices if the tooltip stops
+        // calling it — which is exactly the shape of the original bug, where
+        // a private fork drifted to 5/1 padding and missed the alignment
+        // floor while every kbd test stayed green.
+        //
+        // Re-forking the renderer inside `spawn_popup` passes every other
+        // test in the crate. This one is the only thing that fails.
+        //
+        // Drives `spawn_popup` directly rather than through a hover: the
+        // hover path needs a window, a camera and a measured `ComputedNode`
+        // before it will place a popup, none of which this is about.
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_plugins(bevy::asset::AssetPlugin::default())
+            .add_plugins(bevy::text::TextPlugin)
+            .add_plugins(crate::kbd::KbdPlugin);
+        app.update();
+
+        let chord = crate::kbd::KbdChord::from(KeyCode::Comma);
+        let target = app.world_mut().spawn(Node::default()).id();
+
+        type PopupParams<'w, 's> = (
+            Commands<'w, 's>,
+            Res<'w, crate::theme::ColorPalette>,
+            Res<'w, crate::theme::Typography>,
+            Res<'w, crate::theme::FontHandle>,
+            Res<'w, crate::theme::Tokens>,
+        );
+        let world = app.world_mut();
+        let mut state: bevy::ecs::system::SystemState<PopupParams> =
+            bevy::ecs::system::SystemState::new(world);
+        let (mut commands, palette, typography, font, tokens) =
+            state.get(world).expect("params validate");
+        let metrics = super::spawn::TooltipMetrics::from(&tokens);
+        super::spawn::spawn_popup(
+            &mut commands,
+            target,
+            &Tooltip::new("Toggle").shortcut(chord.clone()),
+            Vec2::ZERO,
+            Vec2::ZERO,
+            Vec2::new(800.0, 600.0),
+            &palette,
+            &typography,
+            &font,
+            &metrics,
+        );
+        let reference = crate::kbd::spawn_kbd_in(
+            &mut commands,
+            chord,
+            crate::kbd::KbdColors::standard(&palette),
+            crate::kbd::Repaint::FollowsPalette,
+            &font,
+            &typography,
+        );
+        state.apply(world);
+        app.update();
+
+        let want = {
+            let world = app.world();
+            let cap = world.get::<Children>(reference).expect("caps")[0];
+            world.get::<Node>(cap).unwrap().clone()
+        };
+
+        // Every cap in the world except the reference row's belongs to the
+        // popup.
+        let popup_caps: Vec<Node> = {
+            let reference_caps: Vec<Entity> = app
+                .world()
+                .get::<Children>(reference)
+                .expect("caps")
+                .iter()
+                .collect();
+            let world = app.world_mut();
+            let mut q = world.query_filtered::<Entity, With<crate::kbd::KbdCap>>();
+            let all: Vec<Entity> = q.iter(world).collect();
+            all.into_iter()
+                .filter(|e| !reference_caps.contains(e))
+                .map(|e| world.get::<Node>(e).unwrap().clone())
+                .collect()
+        };
+
+        assert!(
+            !popup_caps.is_empty(),
+            "the popup rendered no keycaps at all"
+        );
+        for got in popup_caps {
+            assert_eq!(
+                got.padding, want.padding,
+                "the tooltip is not using the shared keycap renderer"
+            );
+            assert_eq!(
+                got.min_width, want.min_width,
+                "a tooltip cap missed the alignment floor"
+            );
+            assert_eq!(got.border, want.border);
+            assert_eq!(got.border_radius, want.border_radius);
+        }
+    }
 }

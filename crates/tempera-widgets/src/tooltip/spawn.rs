@@ -1,7 +1,6 @@
 use bevy::prelude::*;
 
 use super::components::{Tooltip, TooltipArrow, TooltipPopup, TooltipPosition};
-use crate::kbd::KbdKey;
 use crate::theme::{ColorPalette, FontHandle, Step, Tokens, Typography};
 
 /// Half the diagonal of the rotated square that forms the arrow.
@@ -140,12 +139,17 @@ pub(crate) fn spawn_popup(
     popup
 }
 
-/// Spawn the kbd chips as children of the tooltip popup. The popup
-/// uses inverted colors (`bg-foreground`, `text-background`), so the
-/// standard `spawn_kbd` (muted-on-default) doesn't read well on it.
-/// Instead we paint chips with a translucent background-tinted fill
-/// and `background`-colored text so they sit lightly on top of the
-/// popup's light surface.
+/// Spawn the kbd chips as children of the tooltip popup.
+///
+/// The popup paints inverted (`bg-foreground`, `text-background`), so the
+/// standard muted-on-default cap reads as a smudge on it — hence
+/// [`KbdColors::on_inverted`].
+///
+/// The *colours* are all that differs. This used to be a full fork of
+/// `spawn_kbd` carrying its own geometry, which then drifted (5/1 padding
+/// against 6/2) and missed the keycap alignment floor entirely — a tooltip's
+/// shortcuts were ragged where the same chord in the keybindings tab was
+/// not. Calling the shared spawner is what keeps the two in step.
 fn spawn_kbd_chips_for_tooltip(
     commands: &mut Commands,
     parent: Entity,
@@ -154,73 +158,19 @@ fn spawn_kbd_chips_for_tooltip(
     typography: &Typography,
     font: &FontHandle,
 ) {
-    let row = commands
-        .spawn((
-            Node {
-                flex_direction: FlexDirection::Row,
-                column_gap: Val::Px(2.0),
-                align_items: AlignItems::Center,
-                ..default()
-            },
-            ChildOf(parent),
-            bevy::picking::Pickable::IGNORE,
-        ))
-        .id();
-
-    let mut chip_bg = palette.background;
-    chip_bg.set_alpha(0.18);
-    let mut border = palette.background;
-    border.set_alpha(0.32);
-
-    for segment in chord.render_order() {
-        let display = match segment {
-            KbdKey::Modifier(m) => crate::kbd::modifier_glyph(*m).to_string(),
-            KbdKey::Key(k) => crate::kbd::key_glyph(*k),
-        };
-        spawn_chip(
-            commands,
-            row,
-            &display,
-            chip_bg,
-            border,
-            palette.background,
-            font,
-            typography,
-        );
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn spawn_chip(
-    commands: &mut Commands,
-    row: Entity,
-    display: &str,
-    bg: Color,
-    border: Color,
-    text: Color,
-    font: &FontHandle,
-    typography: &Typography,
-) {
+    let row = crate::kbd::spawn_kbd_in(
+        commands,
+        chord.clone(),
+        crate::kbd::KbdColors::on_inverted(palette),
+        // The popup owns these colours; `repaint_kbd` must not resolve them
+        // back to the standard palette.
+        crate::kbd::Repaint::CallerOwns,
+        font,
+        typography,
+    );
     commands
-        .spawn((
-            Node {
-                padding: UiRect::axes(Val::Px(5.0), Val::Px(1.0)),
-                border: UiRect::all(Val::Px(1.0)),
-                border_radius: BorderRadius::all(Val::Px(4.0)),
-                ..default()
-            },
-            BackgroundColor(bg),
-            BorderColor::all(border),
-            ChildOf(row),
-        ))
-        .with_children(|p| {
-            p.spawn((
-                Text::new(display.to_string()),
-                font.text_font(typography.xs),
-                TextColor(text),
-                bevy::picking::Pickable::IGNORE,
-            ));
-        });
+        .entity(row)
+        .insert((ChildOf(parent), bevy::picking::Pickable::IGNORE));
 }
 
 /// Suppress warning — `TooltipPosition` is part of the public API.
