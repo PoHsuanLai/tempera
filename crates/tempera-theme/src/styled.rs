@@ -61,6 +61,15 @@ pub struct StyledNode {
     /// A square box — width and height both — at a step on the scale.
     /// For icons and glyph slots.
     pub square: Option<Step>,
+    /// A square *floor*: `min_width` and `height` together, leaving width
+    /// free to grow.
+    ///
+    /// Distinct from [`square`](Self::square), which pins width outright.
+    /// Use this where the content is usually one glyph but occasionally
+    /// wider — a keycap is `,` or `B` most of the time and `F1` or `Esc`
+    /// sometimes. Fixing the width would clip the long ones; leaving it to
+    /// content makes the short ones visibly narrower than their neighbours.
+    pub min_square: Option<Step>,
 }
 
 impl StyledNode {
@@ -75,6 +84,7 @@ impl StyledNode {
             radius: None,
             height: None,
             square: None,
+            min_square: None,
         }
     }
 
@@ -130,6 +140,14 @@ impl StyledNode {
     #[must_use]
     pub const fn square(mut self, step: Step) -> Self {
         self.square = Some(step);
+        self
+    }
+
+    /// A square *floor* at `step` — `min_width` and `height`, width free to
+    /// grow past it.
+    #[must_use]
+    pub const fn min_square(mut self, step: Step) -> Self {
+        self.min_square = Some(step);
         self
     }
 }
@@ -205,6 +223,17 @@ fn apply(tokens: &Tokens, style: &StyledNode, mut node: Mut<Node>) {
         let want = gap(step);
         if node.width != want {
             node.width = want;
+        }
+        if node.height != want {
+            node.height = want;
+        }
+    }
+    if let Some(step) = style.min_square {
+        let want = gap(step);
+        // `min_width`, not `width`: the box is square until its content
+        // needs more room, then it grows sideways only.
+        if node.min_width != want {
+            node.min_width = want;
         }
         if node.height != want {
             node.height = want;
@@ -351,5 +380,48 @@ mod tests {
         let node = app.world().get::<Node>(e).unwrap();
         assert_eq!(node.width, Val::Px(12.0));
         assert_eq!(node.height, Val::Px(12.0));
+    }
+
+    #[test]
+    fn a_min_square_floors_the_width_without_fixing_it() {
+        // The distinction from `square`, and the whole reason both exist: a
+        // fixed `width` would clip content wider than the step, which is what
+        // a keycap containing `F1` or `Esc` needs to avoid.
+        let mut app = app();
+        let e = spawn(&mut app, StyledNode::new().min_square(Step::new(5)));
+        app.update();
+        let node = app.world().get::<Node>(e).unwrap();
+        assert_eq!(node.min_width, Val::Px(24.0), "the floor is not applied");
+        assert_eq!(node.height, Val::Px(24.0), "the height is not applied");
+        assert_eq!(
+            node.width,
+            Val::Auto,
+            "min_square must leave width free to grow, or it is just `square`"
+        );
+    }
+
+    #[test]
+    fn a_min_square_follows_a_rebuilt_theme() {
+        // `min_square` resolves through the same scale as everything else,
+        // so a coarser base moves it. Pins that it went through `gap()`
+        // rather than being written as a literal.
+        let mut app = app();
+        let e = spawn(&mut app, StyledNode::new().min_square(Step::new(5)));
+        app.update();
+        assert_eq!(app.world().get::<Node>(e).unwrap().min_width, Val::Px(24.0));
+
+        let coarse = ThemeConfig {
+            base: Base::EIGHT,
+            ..default()
+        };
+        app.insert_resource(coarse)
+            .insert_resource(coarse.build().expect("base 8 is coherent"));
+        app.update();
+
+        assert_eq!(
+            app.world().get::<Node>(e).unwrap().min_width,
+            Val::Px(48.0),
+            "the floor did not follow the scale"
+        );
     }
 }
