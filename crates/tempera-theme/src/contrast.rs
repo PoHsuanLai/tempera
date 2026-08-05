@@ -142,6 +142,60 @@ impl ColorPalette {
             s.alpha,
         )
     }
+
+    /// Move `base` **toward** the `surface` behind it by `amount`: the
+    /// disabled direction.
+    ///
+    /// [`step`](Self::step) separates a colour from its background so it reads
+    /// as a change. This does the opposite — it lets a colour recede, which is
+    /// what "unavailable" looks like: still legible enough to read, plainly not
+    /// a thing you can use.
+    ///
+    /// `amount` is the fraction of the distance to travel: `0.0` is `base`
+    /// unchanged, `1.0` is `surface` exactly (and therefore invisible). `0.5`
+    /// is the useful middle. Alpha is preserved from `base`.
+    ///
+    /// # Why this is not `step` with a negative amount
+    ///
+    /// Two reasons, and both would be bugs.
+    ///
+    /// `step` picks its direction from luminance and then **reverses** when the
+    /// colour has no headroom that way — that fallback is right for separation
+    /// and wrong here, because it would push a disabled colour *away* from the
+    /// surface and make it stand out more than the enabled one. Toward the
+    /// surface always has room, because the surface is the destination.
+    ///
+    /// `step` also adds a constant to each channel, which changes hue on
+    /// saturated colours (the `lighten`-clamping flaw the module docs record).
+    /// Interpolating cannot overshoot and cannot skew hue, because every
+    /// channel arrives at its destination together.
+    ///
+    /// ```
+    /// # use tempera_theme::ColorPalette;
+    /// # use bevy::prelude::*;
+    /// // Halfway to the page, in either theme.
+    /// for palette in [ColorPalette::dark(), ColorPalette::light()] {
+    ///     let dim = ColorPalette::toward(palette.foreground, palette.background, 0.5);
+    ///     let (fg, bg) = (palette.foreground.to_srgba(), palette.background.to_srgba());
+    ///     // Strictly between the two, never past either end.
+    ///     assert!((dim.to_srgba().red - fg.red).abs() < (bg.red - fg.red).abs());
+    /// }
+    /// ```
+    #[must_use]
+    pub fn toward(base: Color, surface: Color, amount: f32) -> Color {
+        let t = amount.clamp(0.0, 1.0);
+        let (b, s) = (base.to_srgba(), surface.to_srgba());
+        Color::srgba(
+            b.red + (s.red - b.red) * t,
+            b.green + (s.green - b.green) * t,
+            b.blue + (s.blue - b.blue) * t,
+            // `base`'s alpha, not the surface's: a disabled row recedes in
+            // colour, it does not become partly transparent. Fading alpha
+            // instead would let whatever sits behind the surface bleed through,
+            // which is a different effect and one that stacks badly on overlaps.
+            b.alpha,
+        )
+    }
 }
 
 #[cfg(test)]
@@ -311,5 +365,96 @@ mod tests {
             let moved = ColorPalette::step(base, p.background, 0.0);
             assert_eq!(moved.to_srgba().to_vec3(), base.to_srgba().to_vec3());
         }
+    }
+
+    /// The mirror of `a_step_always_moves_away_from_the_surface`, and the
+    /// property a disabled row rests on.
+    #[test]
+    fn toward_always_moves_closer_to_the_surface() {
+        for palette in [ColorPalette::dark(), ColorPalette::light()] {
+            let bg = palette.background;
+            for base in [
+                palette.foreground,
+                palette.muted_foreground,
+                palette.primary,
+            ] {
+                let moved = ColorPalette::toward(base, bg, 0.5);
+                let before = (luminance(base) - luminance(bg)).abs();
+                let after = (luminance(moved) - luminance(bg)).abs();
+                assert!(
+                    after < before,
+                    "toward moved {base:?} away from the surface {bg:?}: \
+                     separation {before} -> {after}"
+                );
+            }
+        }
+    }
+
+    /// Why this is not `step` with a negative amount.
+    ///
+    /// `step` reverses direction when a colour has no headroom the way it
+    /// wanted to go — correct for separation, fatal here. `foreground` in the
+    /// dark palette is (250,250,250), five points from white, so a
+    /// negative-amount `step` would hit that fallback and push the *disabled*
+    /// colour further from the background than the enabled one: the unusable
+    /// row would stand out more than the usable ones.
+    #[test]
+    fn toward_never_reverses_the_way_a_step_would() {
+        let dark = ColorPalette::dark();
+        let dim = ColorPalette::toward(dark.foreground, dark.background, 0.5);
+        assert!(
+            luminance(dim) < luminance(dark.foreground),
+            "a near-white foreground must dim downward toward a near-black page"
+        );
+    }
+
+    /// Interpolation cannot overshoot, which is the second reason it is not a
+    /// per-channel add. Even at 1.0 the result is exactly the surface, and
+    /// beyond that it is clamped rather than continuing past it.
+    #[test]
+    fn toward_lands_on_the_surface_and_goes_no_further() {
+        let p = ColorPalette::dark();
+        // Compared within a tolerance rather than bit-for-bit: `a + (b - a) * 1.0`
+        // is `b` mathematically but lands one ulp away in f32, and a test that
+        // demanded exactness here would be asserting on the rounding rather
+        // than on the property.
+        let near = |a: Color, b: Color, what: &str| {
+            let (a, b) = (a.to_srgba().to_vec3(), b.to_srgba().to_vec3());
+            assert!((a - b).abs().max_element() < 1e-6, "{what}: {a:?} vs {b:?}");
+        };
+        near(
+            ColorPalette::toward(p.foreground, p.background, 1.0),
+            p.background,
+            "all the way is the surface",
+        );
+        near(
+            ColorPalette::toward(p.foreground, p.background, 2.0),
+            p.background,
+            "an out-of-range amount must clamp, not invert past the surface",
+        );
+    }
+
+    /// Zero is the identity, matching `step`'s own contract.
+    #[test]
+    fn toward_by_nothing_changes_nothing() {
+        let p = ColorPalette::light();
+        let moved = ColorPalette::toward(p.foreground, p.background, 0.0);
+        assert_eq!(
+            moved.to_srgba().to_vec3(),
+            p.foreground.to_srgba().to_vec3()
+        );
+    }
+
+    /// A dimmed colour keeps its own alpha rather than drifting toward the
+    /// surface's. Fading alpha instead would let whatever sits behind the
+    /// surface bleed through, and two overlapping dimmed things would compound.
+    #[test]
+    fn toward_preserves_the_base_alpha() {
+        let base = Color::srgba(1.0, 1.0, 1.0, 0.5);
+        let surface = Color::srgba(0.0, 0.0, 0.0, 1.0);
+        assert_eq!(
+            ColorPalette::toward(base, surface, 0.5).to_srgba().alpha,
+            0.5
+        );
     }
 }
