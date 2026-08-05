@@ -50,7 +50,7 @@
 use bevy::prelude::*;
 use bevy::ui::Checked;
 use bevy_resvg::prelude::{SvgColor, UiSvg};
-use tempera_theme::ColorPalette;
+use tempera_theme::{ColorPalette, FontHandle};
 
 use crate::node::Axis;
 use crate::page::{ActivePage, Page, PageIcon, PageId, PageLabel, PageOrder};
@@ -171,6 +171,12 @@ pub(crate) fn reconcile_chips(
     panes: Query<&Children>,
     pages: Query<(&PageId, Option<&PageLabel>, Option<&PageIcon>, &PageOrder), With<Page>>,
     chips: Query<&PageChip>,
+    // `Option`, matching `repaint_chips`' treatment of the palette and for the
+    // same reason: no theme plugin means a headless host or a test standing up
+    // the dock alone, and a chip should still get its geometry there. The
+    // fallback is bevy's built-in font, which is what a missing handle means
+    // everywhere in tempera.
+    font: Option<Res<FontHandle>>,
     added: Query<(), Added<Page>>,
     moved: Query<(), Changed<PageOrder>>,
     mut removed: RemovedComponents<Page>,
@@ -245,6 +251,7 @@ pub(crate) fn reconcile_chips(
                 },
                 style,
                 want,
+                font.as_deref(),
             );
         }
     }
@@ -269,7 +276,13 @@ struct Placement {
 
 /// One chip. Square inner corners, rounded outer ends, so the strip reads as a
 /// single pill rather than a line of separate buttons.
-fn spawn_chip(commands: &mut Commands, at: Placement, style: &PageStripStyle, page: &Candidate) {
+fn spawn_chip(
+    commands: &mut Commands,
+    at: Placement,
+    style: &PageStripStyle,
+    page: &Candidate,
+    font: Option<&FontHandle>,
+) {
     // The label if there is one, else the id — an inspector row reading
     // `page_chip::` and nothing else names nothing.
     let name = page
@@ -333,12 +346,23 @@ fn spawn_chip(commands: &mut Commands, at: Placement, style: &PageStripStyle, pa
     } else {
         commands.spawn((
             Text::new(name),
-            TextFont {
-                // `Px`, matching `Typography`'s ramp — its doc comment is
-                // explicit that bevy_text reads these as logical pixels.
-                font_size: FontSize::Px(style.label_size),
-                ..default()
-            },
+            // `FontHandle::text_font`, never a hand-built `TextFont`. Both set
+            // the size; only this one sets the *font*, and `TextFont::default`
+            // leaves `FontSource` at bevy's built-in — which renders, lays out
+            // and reports the right string in a monospace face nothing asked
+            // for. That is precisely the failure the first assembled
+            // screenshot showed: Inter everywhere except these chips.
+            //
+            // The helper also owns the `FontSize::Px` wrap, so the ramp's
+            // "these are logical pixels" contract is stated in one place
+            // instead of at every call site.
+            font.map_or_else(
+                || TextFont {
+                    font_size: FontSize::Px(style.label_size),
+                    ..default()
+                },
+                |font| font.text_font(style.label_size),
+            ),
             // Colour is `repaint_chips`' to decide — it resolves selected
             // against resting every frame, and a colour written here would be
             // a second writer of the same field that only ever loses.
@@ -632,6 +656,81 @@ mod tests {
             colors[1], palette.muted_foreground,
             "an unselected chip's label must not"
         );
+    }
+
+    #[test]
+    fn a_label_uses_the_themed_font() {
+        // The gap the first fix left, and one no assertion in this module could
+        // have caught: `TextFont::default()` leaves `FontSource` at bevy's
+        // built-in font, which renders, lays out and reports the right string
+        // in a monospace face nothing asked for. Every structural test still
+        // passes; the chips simply do not match the rest of the application.
+        //
+        // Found by screenshot — Inter everywhere except these two chips.
+        let mut app = App::new();
+        app.init_resource::<ColorPalette>()
+            .add_systems(Update, (reconcile_chips, repaint_chips).chain());
+
+        // A `Handle::uuid`, **not** `Handle::default()`. The first version of
+        // this test used the default and passed with the fix reverted, because
+        // `FontSource::default()` *is* `Handle(Handle::default())` — the
+        // assertion was true either way. That default handle resolves to bevy's
+        // built-in FiraMono, which is the monospace the screenshot showed, so
+        // the vacuous test and the bug had the same root.
+        let handle: Handle<Font> = Handle::Uuid(
+            bevy::asset::uuid::Uuid::from_u128(0x7e3a_0001),
+            Default::default(),
+        );
+        app.insert_resource(FontHandle::regular(handle.clone()));
+
+        let pane = app.world_mut().spawn(ActivePage::none()).id();
+        app.world_mut().spawn((
+            Page,
+            PageId::from("timeline"),
+            PageLabel("Timeline"),
+            PageOrder(10),
+            ChildOf(pane),
+        ));
+        let strip = app
+            .world_mut()
+            .spawn((PageStrip(pane), PageStripStyle::default(), ChildOf(pane)))
+            .id();
+        app.update();
+
+        let chip = app
+            .world()
+            .get::<Children>(strip)
+            .expect("the strip has a chip")
+            .iter()
+            .next()
+            .expect("one chip");
+        let label = app
+            .world()
+            .get::<Children>(chip)
+            .expect("the chip draws a label")
+            .iter()
+            .next()
+            .expect("one label");
+        let font = app.world().get::<TextFont>(label).expect("a text font");
+
+        assert!(
+            matches!(&font.font, FontSource::Handle(h) if *h == handle),
+            "the label must use the host's font, not bevy's built-in fallback"
+        );
+        assert_eq!(
+            font.font_size,
+            FontSize::Px(PageStripStyle::default().label_size)
+        );
+    }
+
+    #[test]
+    fn a_label_without_a_font_resource_still_gets_its_size() {
+        // The headless case `reconcile_chips` takes `Option<Res<FontHandle>>`
+        // for. A test or a host with no theme plugin must still get a chip that
+        // measures — falling back to bevy's font is correct there, and dropping
+        // the label entirely would not be.
+        let (mut app, _, strip) = app_labelled(&[("timeline", "Timeline")]);
+        assert_eq!(chip_texts(&mut app, strip), ["Timeline"]);
     }
 
     #[test]
