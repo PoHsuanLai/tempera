@@ -93,6 +93,14 @@ pub struct PageStripStyle {
     pub thickness: f32,
     /// Glyph size inside a chip.
     pub icon_size: f32,
+    /// Font size of a chip's label, used when its page has no
+    /// [`PageIcon`](crate::PageIcon).
+    ///
+    /// Separate from [`icon_size`](Self::icon_size) rather than reusing it:
+    /// they coincide at the default but mean different things, and a host
+    /// tuning glyph size to match a rail of icons would silently resize text
+    /// it never mentioned.
+    pub label_size: f32,
     /// Radius of the strip's two outer ends.
     pub end_radius: f32,
     /// Fill of the chosen chip. Falls back to `palette.primary`.
@@ -107,6 +115,12 @@ impl Default for PageStripStyle {
             axis: Axis::Row,
             thickness: 24.0,
             icon_size: 14.0,
+            // `Typography::sm`. Written as a literal because this crate does
+            // not read the ramp — a `PageStripStyle` is a plain value a host
+            // can build without a `World`, and taking a `Res<Typography>` here
+            // would make the default unconstructible in exactly the tests that
+            // check it.
+            label_size: 12.0,
             end_radius: 6.0,
             selected: None,
             resting: None,
@@ -293,6 +307,17 @@ fn spawn_chip(commands: &mut Commands, at: Placement, style: &PageStripStyle, pa
         .observe(on_chip_click)
         .id();
 
+    // An icon if the page has one, else its label as text.
+    //
+    // The label branch is not a nicety: a chip's own `Node` is
+    // `flex_basis: 0` with no width, so **a chip with no child measures zero
+    // and is invisible**. Before this existed, a page that set `PageLabel` and
+    // no `PageIcon` — which `Page`'s required-components chain makes the
+    // default, since `PageLabel` is required and `PageIcon` is deliberately
+    // opt-in — got a chip that was correct in every respect except being
+    // drawable. The strip's own tests did not catch it because each asserts on
+    // `PageChip` identity, ordering or border radius, and all of those are
+    // right on a zero-width chip.
     if let Some(icon) = page.icon {
         commands.spawn((
             UiSvg(icon.0.clone()),
@@ -302,6 +327,21 @@ fn spawn_chip(commands: &mut Commands, at: Placement, style: &PageStripStyle, pa
                 ..default()
             },
             // The chip is the click target; the glyph must not intercept.
+            bevy::picking::Pickable::IGNORE,
+            ChildOf(chip),
+        ));
+    } else {
+        commands.spawn((
+            Text::new(name),
+            TextFont {
+                // `Px`, matching `Typography`'s ramp — its doc comment is
+                // explicit that bevy_text reads these as logical pixels.
+                font_size: FontSize::Px(style.label_size),
+                ..default()
+            },
+            // Colour is `repaint_chips`' to decide — it resolves selected
+            // against resting every frame, and a colour written here would be
+            // a second writer of the same field that only ever loses.
             bevy::picking::Pickable::IGNORE,
             ChildOf(chip),
         ));
@@ -350,6 +390,7 @@ pub(crate) fn repaint_chips(
         &mut BackgroundColor,
     )>,
     icons: Query<(Entity, Option<&SvgColor>), With<UiSvg>>,
+    mut labels: Query<&mut TextColor, With<Text>>,
     children: Query<&Children>,
     mut commands: Commands,
 ) {
@@ -398,12 +439,21 @@ pub(crate) fn repaint_chips(
             // `SvgColor`, never `ImageNode`: `bevy_resvg` owns that component
             // and its insert query skips entities that already have one, so a
             // write here would make the glyph vanish rather than mis-tint.
+            //
+            // A chip's child is one or the other — an icon if the page has one,
+            // else its label — so both arms run over the same children and only
+            // one ever matches.
             if let Ok(kids) = children.get(entity) {
                 for kid in kids.iter() {
                     if let Ok((icon, current)) = icons.get(kid)
                         && current.is_none_or(|c| c.0 != want_fg)
                     {
                         commands.entity(icon).insert(SvgColor(want_fg));
+                    }
+                    if let Ok(mut color) = labels.get_mut(kid)
+                        && color.0 != want_fg
+                    {
+                        color.0 = want_fg;
                     }
                 }
             }
@@ -441,6 +491,176 @@ mod tests {
             .id();
         app.update();
         (app, pane, strip)
+    }
+
+    /// A pane whose pages carry labels, and a strip charting it.
+    ///
+    /// Separate from [`app_on`] because that one leaves [`PageLabel`] at its
+    /// default — which is the empty string, and an empty label is exactly the
+    /// case that would make a "chips render their label" assertion pass
+    /// vacuously.
+    fn app_labelled(pages: &[(&str, &'static str)]) -> (App, Entity, Entity) {
+        let mut app = App::new();
+        app.init_resource::<ColorPalette>()
+            .add_systems(Update, (reconcile_chips, repaint_chips).chain());
+
+        let pane = app.world_mut().spawn(ActivePage::none()).id();
+        for (index, (id, label)) in pages.iter().enumerate() {
+            app.world_mut().spawn((
+                Page,
+                PageId::from(*id),
+                PageLabel(label),
+                PageOrder(index as i32 * 10),
+                ChildOf(pane),
+            ));
+        }
+        let strip = app
+            .world_mut()
+            .spawn((PageStrip(pane), PageStripStyle::default(), ChildOf(pane)))
+            .id();
+        app.update();
+        (app, pane, strip)
+    }
+
+    /// The text each chip of `strip` draws, in chip order.
+    fn chip_texts(app: &mut App, strip: Entity) -> Vec<String> {
+        let chips: Vec<Entity> = app
+            .world()
+            .get::<Children>(strip)
+            .map(|c| c.iter().collect())
+            .unwrap_or_default();
+        chips
+            .into_iter()
+            .filter(|c| app.world().get::<PageChip>(*c).is_some())
+            .map(|chip| {
+                let kids: Vec<Entity> = app
+                    .world()
+                    .get::<Children>(chip)
+                    .map(|c| c.iter().collect())
+                    .unwrap_or_default();
+                kids.into_iter()
+                    .filter_map(|kid| app.world().get::<Text>(kid))
+                    .map(|text| text.0.clone())
+                    .collect::<Vec<_>>()
+                    .join("")
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_chip_draws_its_label_when_the_page_has_no_icon() {
+        // The defect this test was written for: `spawn_chip` computed the
+        // label, used it for the `Name` component, and drew only a `PageIcon`.
+        // A page with a label and no icon — which is the default, since
+        // `PageLabel` is a required component and `PageIcon` is opt-in — got a
+        // chip with **no children at all**.
+        //
+        // Every other test in this module passed on that chip, because
+        // `PageChip` identity, ordering and border radius are all correct on
+        // one. What is wrong is that it is empty, and therefore invisible.
+        let (mut app, _, strip) = app_labelled(&[("timeline", "Timeline"), ("mixer", "Mixer")]);
+        assert_eq!(chip_texts(&mut app, strip), ["Timeline", "Mixer"]);
+    }
+
+    #[test]
+    fn a_chip_with_no_child_would_measure_zero() {
+        // Why the test above is about *visibility* and not about text.
+        //
+        // A chip declares `flex_basis: 0` and `flex_grow: 1` on the main axis
+        // and a fixed thickness across it, so its main-axis size comes entirely
+        // from growing around its content. With no child there is nothing to
+        // grow around: the layout resolves it to zero and the chip cannot be
+        // seen or clicked, while every structural assertion still passes.
+        let (app, _, strip) = app_labelled(&[("timeline", "Timeline")]);
+        let chip = app
+            .world()
+            .get::<Children>(strip)
+            .expect("the strip has chips")
+            .iter()
+            .next()
+            .expect("one chip");
+
+        let node = app.world().get::<Node>(chip).expect("a chip node");
+        assert_eq!(
+            node.flex_basis,
+            Val::Px(0.0),
+            "if this stops being zero the reasoning above no longer holds"
+        );
+        assert!(
+            app.world()
+                .get::<Children>(chip)
+                .is_some_and(|kids| kids.len() == 1),
+            "a chip must have exactly one child to have any size"
+        );
+    }
+
+    #[test]
+    fn a_label_takes_its_colour_from_the_selection() {
+        // The label is painted by `repaint_chips`, the same system that tints
+        // an icon — so a selected chip's text must follow its fill. Written
+        // because the obvious implementation sets `TextColor` at spawn, which
+        // is correct exactly once and then never updates.
+        let (mut app, pane, strip) = app_labelled(&[("timeline", "Timeline"), ("mixer", "Mixer")]);
+        app.world_mut()
+            .entity_mut(pane)
+            .insert(ActivePage::at("timeline"));
+        app.update();
+
+        let palette = app.world().resource::<ColorPalette>().clone();
+        let colors: Vec<Color> = {
+            let chips: Vec<Entity> = app
+                .world()
+                .get::<Children>(strip)
+                .map(|c| c.iter().collect())
+                .unwrap_or_default();
+            chips
+                .into_iter()
+                .filter(|c| app.world().get::<PageChip>(*c).is_some())
+                .filter_map(|chip| {
+                    let kid = app.world().get::<Children>(chip)?.iter().next()?;
+                    app.world().get::<TextColor>(kid).map(|c| c.0)
+                })
+                .collect()
+        };
+
+        assert_eq!(colors.len(), 2, "both chips draw a label");
+        assert_eq!(
+            colors[0], palette.primary_foreground,
+            "the selected chip's label must read against its fill"
+        );
+        assert_eq!(
+            colors[1], palette.muted_foreground,
+            "an unselected chip's label must not"
+        );
+    }
+
+    #[test]
+    fn an_icon_still_wins_over_a_label() {
+        // The label branch must not displace the icon one. A page with both
+        // gets the glyph, which is what a narrow vertical rail depends on.
+        let mut app = App::new();
+        app.init_resource::<ColorPalette>()
+            .add_systems(Update, (reconcile_chips, repaint_chips).chain());
+        let pane = app.world_mut().spawn(ActivePage::none()).id();
+        app.world_mut().spawn((
+            Page,
+            PageId::from("timeline"),
+            PageLabel("Timeline"),
+            PageIcon(Handle::default()),
+            PageOrder(10),
+            ChildOf(pane),
+        ));
+        let strip = app
+            .world_mut()
+            .spawn((PageStrip(pane), PageStripStyle::default(), ChildOf(pane)))
+            .id();
+        app.update();
+
+        assert_eq!(
+            chip_texts(&mut app, strip),
+            [""],
+            "a page with an icon must not also draw its label"
+        );
     }
 
     fn chip_ids(app: &mut App, strip: Entity) -> Vec<String> {
