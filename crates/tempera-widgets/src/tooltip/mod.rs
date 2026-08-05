@@ -62,7 +62,7 @@ mod tests {
     use components::TooltipHover;
     use tempera_input::{
         AppCommandExt, CommandId, CommandLabel, CommandRegistry, Keybind, TemperaInputPlugin,
-        dyn_cmd, key, on_press,
+        dyn_cmd, key, on_press, scratch_keybinds_path,
     };
 
     /// An app with one command bound to `chord`, and a button whose tooltip
@@ -73,7 +73,7 @@ mod tests {
     /// the lookup empty and every assertion below vacuously "correct".
     fn app_with(chord: Option<tempera_input::Chord>) -> (App, Entity, Entity) {
         let mut app = App::new();
-        app.add_plugins(TemperaInputPlugin::new("test-tooltip-shortcut"))
+        app.add_plugins(TemperaInputPlugin::at(scratch_keybinds_path()))
             .add_systems(Update, systems::resolve_command_shortcuts);
 
         app.spawn_command(dyn_cmd(
@@ -195,7 +195,7 @@ mod tests {
         // Commands are registered by whichever crates are present, so a
         // toolbar naming one from an absent crate is ordinary, not broken.
         let mut app = App::new();
-        app.add_plugins(TemperaInputPlugin::new("test-tooltip-unknown"))
+        app.add_plugins(TemperaInputPlugin::at(scratch_keybinds_path()))
             .add_systems(Update, systems::resolve_command_shortcuts);
         let button = app
             .world_mut()

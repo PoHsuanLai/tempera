@@ -1,5 +1,7 @@
 //! The plugin, and the one piece of configuration tempera needs from its host.
 
+use std::path::PathBuf;
+
 use bevy::prelude::*;
 
 use crate::binding::{apply_saved_bindings, strip_unbound_keybinds};
@@ -7,13 +9,19 @@ use crate::command::{CommandRegistry, unregister_despawned_commands};
 use crate::dispatch::{HeldClaims, dispatch_commands, drain_held_claims, window_lost_focus};
 use crate::persist::SavedKeybinds;
 
-/// The application's name, used to namespace on-disk state.
+/// Where this application's keybinds are read from and written to.
 ///
-/// tempera does not know what application it is running. Two apps built on it
-/// must not share one keybinds file, so the name is supplied rather than
-/// assumed.
+/// Inserted by [`TemperaInputPlugin`] so that a host system which rebinds a
+/// command can write the file back without having to re-derive the path — and
+/// without tempera having to guess where it should be.
+///
+/// This replaces an `AppName(String)`. A name is not what a writer needs: it
+/// needed the *path*, and had to reconstruct it through
+/// [`SavedKeybinds::storage_path`] every time. Naming the thing the consumer
+/// actually uses also makes the resource the single owner of that answer, so a
+/// host that overrides the path has overridden it everywhere.
 #[derive(Resource, Clone, Debug)]
-pub struct AppName(pub String);
+pub struct KeybindsPath(pub PathBuf);
 
 /// Keybinds and commands.
 ///
@@ -24,23 +32,41 @@ pub struct AppName(pub String);
 /// let mut app = App::new();
 /// app.add_plugins(TemperaInputPlugin::new("my-app"));
 /// ```
+///
+/// [`new`](Self::new) takes an application name and puts the file in the
+/// conventional place. A host that needs somewhere else — a portable install,
+/// a `--config` flag, a test that must not touch the developer's home
+/// directory — uses [`at`](Self::at) instead.
 pub struct TemperaInputPlugin {
-    app_name: String,
+    keybinds_path: PathBuf,
 }
 
 impl TemperaInputPlugin {
-    pub fn new(app_name: impl Into<String>) -> Self {
+    /// Keybinds in the conventional location for `app_name`:
+    /// `<config dir>/<app_name>/keybinds.json`.
+    pub fn new(app_name: impl AsRef<str>) -> Self {
         Self {
-            app_name: app_name.into(),
+            keybinds_path: SavedKeybinds::storage_path(app_name.as_ref()),
+        }
+    }
+
+    /// Keybinds at an explicit path.
+    ///
+    /// The escape hatch from the convention. Without it a downstream test
+    /// cannot isolate itself from the developer's real config file, which is
+    /// the concrete problem that motivated taking a path at all.
+    pub fn at(path: impl Into<PathBuf>) -> Self {
+        Self {
+            keybinds_path: path.into(),
         }
     }
 }
 
 impl Plugin for TemperaInputPlugin {
     fn build(&self, app: &mut App) {
-        let saved = SavedKeybinds::load(&self.app_name);
+        let saved = SavedKeybinds::load(&self.keybinds_path);
 
-        app.insert_resource(AppName(self.app_name.clone()))
+        app.insert_resource(KeybindsPath(self.keybinds_path.clone()))
             .insert_resource(saved)
             .init_resource::<CommandRegistry>()
             .init_resource::<HeldClaims>()
@@ -96,6 +122,7 @@ mod tests {
     use super::*;
     use crate::command::Command;
     use crate::command::{AppCommandExt, CommandLabel, CommandRegistry, cmd, on_press};
+    use crate::persist::scratch_keybinds_path;
 
     struct Undo;
     impl Command for Undo {
@@ -105,7 +132,7 @@ mod tests {
     #[test]
     fn registry_upkeep_is_wired_by_the_plugin() {
         let mut app = App::new();
-        app.add_plugins(TemperaInputPlugin::new("tempera-test-unused"));
+        app.add_plugins(TemperaInputPlugin::at(scratch_keybinds_path()));
         app.spawn_command(cmd::<Undo>((CommandLabel::new("Undo"), on_press(|_| {}))));
 
         let entity = app
@@ -131,7 +158,7 @@ mod tests {
         // If id release were deferred, the re-add would hit the duplicate
         // guard and the command would vanish.
         let mut app = App::new();
-        app.add_plugins(TemperaInputPlugin::new("tempera-test-unused"));
+        app.add_plugins(TemperaInputPlugin::at(scratch_keybinds_path()));
         app.spawn_command(cmd::<Undo>((CommandLabel::new("v1"), on_press(|_| {}))));
 
         let first = app

@@ -9,14 +9,32 @@
 //! to keep stable, so an unknown id at load time is *ignorable* — the binding
 //! just falls back to its default — rather than actively wrong.
 //!
-//! # Why the app name is a parameter
+//! # The host owns the path
 //!
-//! tempera does not know it is running dawai. [`SavedKeybinds::load`] takes an
-//! app name and derives `<config dir>/<app>/keybinds.json` from it, so two
-//! applications built on tempera do not fight over one file.
+//! [`SavedKeybinds::load`] and [`SavedKeybinds::save`] take a [`Path`]. They
+//! do no path policy of their own — where a file lives is the application's
+//! decision, not a widget library's.
+//!
+//! [`SavedKeybinds::storage_path`] is still here and still derives
+//! `<config dir>/<app>/keybinds.json`, because that convention is a genuinely
+//! useful default and two tempera apps must not fight over one file. The
+//! difference is that it is now a *helper the host may call* rather than a
+//! rule the library applies. A host that wants a portable install, an
+//! `--config` flag, or a test that writes somewhere harmless can simply pass a
+//! different path.
+//!
+//! That last case is what forced this. When the path was derived internally
+//! there was no parameter to redirect, so a downstream test suite could not
+//! isolate itself: `dawai-shell` had to route around it by overriding the app
+//! *name* per test, which leaks a stray config directory per test process. The
+//! alternative was overriding `XDG_CONFIG_HOME`, and `std::env::set_var` is
+//! `unsafe` and unsound under the default multi-threaded test harness. A
+//! library that can only be tested by mutating global process state, or by
+//! writing to the developer's real home directory, has made that choice for
+//! everyone downstream.
 
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use bevy::prelude::Resource;
 use serde::{Deserialize, Serialize};
@@ -66,14 +84,13 @@ impl SavedKeybinds {
         }
     }
 
-    /// Read overrides for `app_name`, or defaults if the file is missing or
+    /// Read overrides from `path`, or defaults if the file is missing or
     /// unreadable.
     ///
     /// A corrupt file is logged and ignored rather than propagated: losing
     /// custom keybinds is a far better failure than refusing to start.
-    pub fn load(app_name: &str) -> Self {
-        let path = Self::storage_path(app_name);
-        let Ok(bytes) = std::fs::read(&path) else {
+    pub fn load(path: &Path) -> Self {
+        let Ok(bytes) = std::fs::read(path) else {
             return Self::default();
         };
         match serde_json::from_slice(&bytes) {
@@ -88,9 +105,8 @@ impl SavedKeybinds {
         }
     }
 
-    /// Write overrides for `app_name`. Failures are logged, not propagated.
-    pub fn save(&self, app_name: &str) {
-        let path = Self::storage_path(app_name);
+    /// Write overrides to `path`. Failures are logged, not propagated.
+    pub fn save(&self, path: &Path) {
         if let Some(parent) = path.parent()
             && let Err(e) = std::fs::create_dir_all(parent)
         {
@@ -102,7 +118,7 @@ impl SavedKeybinds {
         }
         match serde_json::to_vec_pretty(self) {
             Ok(bytes) => {
-                if let Err(e) = std::fs::write(&path, bytes) {
+                if let Err(e) = std::fs::write(path, bytes) {
                     warn!("[keybinds] failed to write {}: {e}", path.display());
                 }
             }
@@ -112,11 +128,31 @@ impl SavedKeybinds {
 
     /// `<config dir>/<app_name>/keybinds.json`, falling back to the working
     /// directory on platforms with no config dir.
+    ///
+    /// A convenience for hosts that want the conventional location. Nothing in
+    /// tempera calls this on a host's behalf — see the module docs.
     pub fn storage_path(app_name: &str) -> PathBuf {
         dirs::config_dir()
             .map(|d| d.join(app_name).join("keybinds.json"))
             .unwrap_or_else(|| PathBuf::from("keybinds.json"))
     }
+}
+
+/// A keybinds path under the system temp directory, unique to this process.
+///
+/// For tests that build the plugin but do not care about persistence, which is
+/// most of them. Nothing is created — [`SavedKeybinds::load`] treats a missing
+/// file as defaults, and a test that never rebinds never writes.
+///
+/// Exported rather than duplicated per test module because the failure it
+/// prevents is silent: a test that omits it reads, and may overwrite, the
+/// developer's own keybinds. Every such test previously passed a deliberately
+/// unused app name (`"tempera-test-unused"`) to stay clear of the real file —
+/// a convention that worked only as long as everyone remembered it.
+pub fn scratch_keybinds_path() -> PathBuf {
+    std::env::temp_dir()
+        .join(format!("tempera-test-{}", std::process::id()))
+        .join("keybinds.json")
 }
 
 #[cfg(test)]
@@ -177,5 +213,78 @@ mod tests {
         let b = SavedKeybinds::storage_path("other");
         assert_ne!(a, b, "two tempera apps must not share a keybinds file");
         assert!(a.ends_with("dawai/keybinds.json"));
+    }
+
+    /// A directory that removes itself, so these tests need no dev-dependency.
+    struct Scratch(PathBuf);
+
+    impl Scratch {
+        fn new(tag: &str) -> Self {
+            let dir =
+                std::env::temp_dir().join(format!("tempera-persist-{}-{tag}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&dir);
+            Self(dir)
+        }
+
+        fn file(&self) -> PathBuf {
+            self.0.join("keybinds.json")
+        }
+    }
+
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn a_saved_file_is_written_where_it_was_asked_to_be() {
+        // The property the app-name API could not offer: the caller names the
+        // destination. Previously the path was derived internally, so this was
+        // unobservable and a test could only assert against the developer's
+        // real config directory.
+        let scratch = Scratch::new("explicit");
+        let mut saved = SavedKeybinds::default();
+        saved.set("global", "edit.undo", vec![vec!["Cmd".into(), "Z".into()]]);
+
+        saved.save(&scratch.file());
+
+        assert!(
+            scratch.file().exists(),
+            "save did not write to the path it was given"
+        );
+        let back = SavedKeybinds::load(&scratch.file());
+        assert_eq!(
+            back.scope("global").unwrap()["edit.undo"],
+            vec![vec!["Cmd", "Z"]]
+        );
+    }
+
+    #[test]
+    fn saving_creates_the_directory() {
+        // The first save on a clean machine — the case that matters most —
+        // has no config directory yet, and `fs::write` will not make one.
+        let scratch = Scratch::new("mkdir");
+        assert!(!scratch.0.exists());
+
+        SavedKeybinds::default().save(&scratch.file());
+
+        assert!(scratch.file().exists());
+    }
+
+    #[test]
+    fn a_missing_file_loads_as_defaults() {
+        let scratch = Scratch::new("missing");
+        assert!(SavedKeybinds::load(&scratch.file()).scopes.is_empty());
+    }
+
+    #[test]
+    fn a_corrupt_file_loads_as_defaults_rather_than_failing() {
+        // Losing custom keybinds beats refusing to start.
+        let scratch = Scratch::new("corrupt");
+        std::fs::create_dir_all(&scratch.0).expect("mkdir");
+        std::fs::write(scratch.file(), "{ not json").expect("write");
+
+        assert!(SavedKeybinds::load(&scratch.file()).scopes.is_empty());
     }
 }

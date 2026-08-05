@@ -71,5 +71,5 @@ pub use command::{
 pub use condition::{Priority, When};
 pub use dispatch::{HeldClaims, dispatch_commands, drain_held_claims};
 pub use kbd::{KbdChord, KbdKey, key_glyph, modifier_glyph};
-pub use persist::{SavedKeybinds, ScopeOverrides};
-pub use plugin::{AppName, TemperaInputPlugin};
+pub use persist::{SavedKeybinds, ScopeOverrides, scratch_keybinds_path};
+pub use plugin::{KeybindsPath, TemperaInputPlugin};
