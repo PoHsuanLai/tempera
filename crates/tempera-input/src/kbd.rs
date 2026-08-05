@@ -221,6 +221,24 @@ pub fn key_glyph(k: KeyCode) -> String {
         End => "↘",
         Space => "␣",
 
+        // Punctuation. Without these a binding on `Cmd+,` — the conventional
+        // Preferences shortcut — renders as "⌘ Comma", because the fallback
+        // below strips only the `Key`/`Digit` prefixes and a punctuation
+        // variant is already prefix-free. The Debug name is a legible word,
+        // which is exactly why this was easy to miss: nothing looked broken,
+        // it just did not look like a keyboard.
+        Comma => ",",
+        Period => ".",
+        Semicolon => ";",
+        Quote => "'",
+        Backquote => "`",
+        Slash => "/",
+        Backslash => "\\",
+        Minus => "-",
+        Equal => "=",
+        BracketLeft => "[",
+        BracketRight => "]",
+
         // Letters and digits — strip the `Key`/`Digit` prefix from the Debug
         // repr (`KeyS` → `S`, `Digit5` → `5`). Anything unrecognised falls
         // through to its Debug form.
@@ -313,5 +331,49 @@ mod tests {
         assert_eq!(glyphs.len(), 3, "got {glyphs:?}");
         assert!(glyphs.contains(&"⌘".to_string()));
         assert!(glyphs.contains(&"⇧".to_string()));
+    }
+}
+
+#[cfg(test)]
+mod punctuation_tests {
+    use super::key_glyph;
+    use bevy::prelude::KeyCode;
+
+    #[test]
+    fn punctuation_keys_render_as_symbols_not_words() {
+        // Found by looking at a screenshot, not by a test: `Cmd+,` — the
+        // conventional Preferences shortcut — rendered as "⌘ Comma". Nothing
+        // was broken enough to fail, because the Debug name of a punctuation
+        // variant is a perfectly legible English word. It just did not look
+        // like a keyboard.
+        for (key, want) in [
+            (KeyCode::Comma, ","),
+            (KeyCode::Period, "."),
+            (KeyCode::Semicolon, ";"),
+            (KeyCode::Slash, "/"),
+            (KeyCode::Minus, "-"),
+            (KeyCode::Equal, "="),
+            (KeyCode::BracketLeft, "["),
+            (KeyCode::BracketRight, "]"),
+            (KeyCode::Quote, "'"),
+            (KeyCode::Backquote, "`"),
+            (KeyCode::Backslash, "\\"),
+        ] {
+            assert_eq!(
+                key_glyph(key),
+                want,
+                "{key:?} still renders as its Debug name"
+            );
+        }
+    }
+
+    #[test]
+    fn the_debug_fallback_still_covers_unmapped_keys() {
+        // The fallback is not dead — it is what makes an unmapped key legible
+        // rather than blank, and adding the punctuation arms above must not
+        // have shadowed it.
+        assert_eq!(key_glyph(KeyCode::F7), "F7");
+        assert_eq!(key_glyph(KeyCode::KeyQ), "Q");
+        assert_eq!(key_glyph(KeyCode::Digit3), "3");
     }
 }
