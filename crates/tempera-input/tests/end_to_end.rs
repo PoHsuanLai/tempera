@@ -13,7 +13,7 @@ use tempera_input::chord::{cmd, key};
 use tempera_input::command::{
     AppCommandExt, BindScope, Command, CommandLabel, CommandRegistry, Keybind, on_press,
 };
-use tempera_input::persist::SavedKeybinds;
+use tempera_input::persist::{SavedKeybinds, scratch_keybinds_path};
 use tempera_input::plugin::TemperaInputPlugin;
 use tempera_input::{Chord, rebind};
 
@@ -27,7 +27,7 @@ impl Command for Save {
 
 fn test_app() -> App {
     let mut app = App::new();
-    app.add_plugins(TemperaInputPlugin::new("tempera-e2e-test-unused"));
+    app.add_plugins(TemperaInputPlugin::at(scratch_keybinds_path()));
     app.init_resource::<ButtonInput<KeyCode>>();
     app.init_resource::<Fired>();
     app

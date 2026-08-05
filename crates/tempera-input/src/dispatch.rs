@@ -274,6 +274,7 @@ mod tests {
     use crate::command::{
         AppCommandExt, Command, CommandLabel, on_press, on_press_held, on_release,
     };
+    use crate::persist::scratch_keybinds_path;
     use crate::plugin::TemperaInputPlugin;
 
     #[derive(Resource, Default, Debug, PartialEq)]
@@ -307,7 +308,7 @@ mod tests {
         let mut app = App::new();
         // The plugin already registers `dispatch_commands`; adding it here too
         // would run every handler twice.
-        app.add_plugins(TemperaInputPlugin::new("tempera-test-unused"));
+        app.add_plugins(TemperaInputPlugin::at(scratch_keybinds_path()));
         app.init_resource::<ButtonInput<KeyCode>>();
         app.init_resource::<Log>();
         app.init_resource::<Gate>();
