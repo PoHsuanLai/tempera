@@ -241,15 +241,39 @@ pub(crate) fn reconcile_chips(
             commands.entity(chip).despawn();
         }
 
-        // The strip lays its chips out along its own axis. Written here rather
-        // than left to the host: a strip whose style says `Column` but whose
-        // node still flows as a row would put every chip's declared thickness
-        // on the wrong dimension, which the layout pass reports as nothing.
+        // The strip lays its chips out along its own axis, and spans its
+        // container along that axis. Both written here rather than left to the
+        // host, for the same reason.
+        //
+        // The axis: a strip whose style says `Column` but whose node still
+        // flows as a row would put every chip's declared thickness on the wrong
+        // dimension, which the layout pass reports as nothing.
+        //
+        // The span: chips are `flex_grow: 1` with `flex_basis: 0`, which splits
+        // the *main axis* evenly — but only if there is a main axis to split. A
+        // bare `#[require(Node)]` root is `width: auto`, so it shrink-wraps its
+        // chips, they all resolve to their text width, and the segmented
+        // control reads as a couple of loose buttons hugging one end. That is
+        // the shape `tempera_widgets::spawn_tabs` avoids by declaring
+        // `width: 100%` on its own root, and a strip is the same control.
         commands
             .entity(strip_entity)
             .entry::<Node>()
             .and_modify(move |mut node| {
                 node.flex_direction = axis.flex_direction();
+                // Only the main axis, and only if the host left it `auto`. The
+                // cross axis stays untouched so each chip's declared
+                // `thickness` is what decides it, and an explicit size always
+                // wins — a host that says `width: Px(200)` means it, and
+                // overwriting that would make the style unsettable from
+                // outside.
+                match axis {
+                    Axis::Row if node.width == Val::Auto => node.width = Val::Percent(100.0),
+                    Axis::Column if node.height == Val::Auto => {
+                        node.height = Val::Percent(100.0);
+                    }
+                    _ => {}
+                }
             });
 
         let count = wanted.len();

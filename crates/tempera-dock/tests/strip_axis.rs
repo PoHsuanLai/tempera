@@ -263,3 +263,70 @@ fn a_strip_declaring_no_axis_lays_out_as_a_row() {
         "an unstyled strip must still run left-to-right, got {along}"
     );
 }
+
+#[test]
+fn a_strip_that_declares_no_size_still_spans_its_container() {
+    // Every test above hands the strip an explicit `width`/`height`, which is
+    // what a test writes and *not* what a host writes: a host spawns
+    // `PageStrip(pane)` and lets `#[require(Node)]` supply the rest. That node
+    // is `width: auto`.
+    //
+    // Chips are `flex_grow: 1` over `flex_basis: 0`, which splits the main axis
+    // evenly — but only when there is a main axis to split. Against an `auto`
+    // root the strip shrink-wraps, every chip collapses to its label width, and
+    // the segmented control renders as a couple of loose buttons hugging one
+    // end of the pane. Nothing errors, and every assertion in this file still
+    // passed, because they all supplied the size the bug was about.
+    //
+    // Reported from the assembled application: "it's supposed to be centered".
+    const BOX: f32 = 400.0;
+
+    let mut app = layout_app();
+    let pane = app.world_mut().spawn(ActivePage::none()).id();
+    for i in 0..2 {
+        app.world_mut().spawn((
+            Page,
+            PageId::from(format!("page{i}")),
+            PageOrder(i * 10),
+            ChildOf(pane),
+        ));
+    }
+
+    // A container of a known width, and a strip inside it that declares
+    // nothing — the shape a host actually produces.
+    let host = app
+        .world_mut()
+        .spawn(Node {
+            width: Val::Px(BOX),
+            height: Val::Px(BOX),
+            ..default()
+        })
+        .id();
+    let strip = app.world_mut().spawn((PageStrip(pane), ChildOf(host))).id();
+    app.update();
+
+    let width = app
+        .world()
+        .get::<ComputedNode>(strip)
+        .expect("the strip is laid out")
+        .size()
+        .x;
+    assert!(
+        (width - BOX).abs() < 0.5,
+        "a row strip must span its container: got {width} of {BOX}"
+    );
+
+    // And the chips divide that span rather than hugging their text.
+    let sizes = chip_sizes(&app, strip);
+    assert_eq!(sizes.len(), 2);
+    assert!(
+        (sizes[0].x - sizes[1].x).abs() < 0.5,
+        "chips must share the length equally, got {:?}",
+        sizes.iter().map(|s| s.x).collect::<Vec<_>>()
+    );
+    assert!(
+        sizes[0].x > BOX / 4.0,
+        "each chip should take about half the strip, got {}",
+        sizes[0].x
+    );
+}
