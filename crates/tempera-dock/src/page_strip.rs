@@ -162,9 +162,16 @@ const HOVER_LIFT: f32 = 0.6;
 /// because splitting them would let a frame land between "spawned" and
 /// "ordered" — a chip appearing at the wrong end and jumping is visible.
 ///
-/// Gating on `Changed<Children>` of the *pane* is not enough: a page's
-/// [`PageOrder`] can change without the child set moving. The diff runs
-/// whenever a page is added, removed or reordered.
+/// Gating on `Changed<Children>` of the *container* alone is not enough: a
+/// page's [`PageOrder`] can change without the child set moving. Nor is
+/// `Added<Page>` alone — a page that is **re-parented** was added long ago and
+/// its order never changed, so neither fires and the strip charts a container
+/// it is no longer looking at. A host that wraps its pages in a layout node
+/// after they register hits exactly that, and the symptom is a strip with no
+/// chips and no error.
+///
+/// So the diff runs whenever a page is added, removed, reordered, **or** the
+/// charted container's child set changes.
 pub(crate) fn reconcile_chips(
     mut commands: Commands,
     strips: Query<(Entity, &PageStrip, &PageStripStyle, Option<&Children>)>,
@@ -179,12 +186,18 @@ pub(crate) fn reconcile_chips(
     font: Option<Res<FontHandle>>,
     added: Query<(), Added<Page>>,
     moved: Query<(), Changed<PageOrder>>,
+    // Any container whose children moved this frame. Not filtered to the ones
+    // strips chart — a strip names its container by entity and there is no
+    // query filter for "is named by some strip", so the cheap check is here and
+    // the precise one is the diff below, which already rebuilds only on a real
+    // difference.
+    reparented: Query<(), Changed<Children>>,
     mut removed: RemovedComponents<Page>,
 ) {
     // `RemovedComponents` must be drained whether or not it is used, or the
     // events pile up until another trigger happens to fire.
     let any_removed = removed.read().count() > 0;
-    if added.is_empty() && moved.is_empty() && !any_removed {
+    if added.is_empty() && moved.is_empty() && reparented.is_empty() && !any_removed {
         return;
     }
 
@@ -799,6 +812,54 @@ mod tests {
         app.update();
 
         assert_eq!(chip_ids(&mut app, strip), ["timeline", "spectral"]);
+    }
+
+    #[test]
+    fn a_page_moved_into_the_charted_container_gets_a_chip() {
+        // A host that wraps its pages in a layout node *after* they register —
+        // to stack a strip above them, say — re-parents pages that were added
+        // frames earlier. `Added<Page>` does not fire for a move and neither
+        // does `Changed<PageOrder>`, so before `Changed<Children>` joined the
+        // gate the strip charted the new container and found nothing: no chips,
+        // no error, and every other test in this module still green.
+        let mut app = App::new();
+        app.init_resource::<ColorPalette>()
+            .add_systems(Update, (reconcile_chips, repaint_chips).chain());
+
+        let pane = app.world_mut().spawn(ActivePage::none()).id();
+        let page = app
+            .world_mut()
+            .spawn((
+                Page,
+                PageId::from("timeline"),
+                PageLabel("Timeline"),
+                PageOrder(10),
+                ChildOf(pane),
+            ))
+            .id();
+        app.update();
+
+        // The host's wrapper, charted by the strip, spawned after the page
+        // exists — which is the ordering that makes this case reachable.
+        let column = app.world_mut().spawn(ActivePage::none()).id();
+        let strip = app
+            .world_mut()
+            .spawn((
+                PageStrip(column),
+                PageStripStyle::default(),
+                ChildOf(column),
+            ))
+            .id();
+        app.update();
+        assert!(
+            chip_ids(&mut app, strip).is_empty(),
+            "nothing has moved yet, so the column has no pages to chart"
+        );
+
+        app.world_mut().entity_mut(page).insert(ChildOf(column));
+        app.update();
+
+        assert_eq!(chip_ids(&mut app, strip), ["timeline"]);
     }
 
     #[test]
