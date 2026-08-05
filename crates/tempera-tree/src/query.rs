@@ -13,7 +13,7 @@ use bevy::prelude::*;
 
 use crate::item::{DefaultOpen, GroupId, ParentGroup, TreeId, TreeItem, TreeName};
 use crate::state::TreeState;
-use crate::visible::{TreeNode, VisibleRow, visible_rows};
+use crate::visible::{RowOrder, TreeNode, VisibleRow, groups_first_then_name, visible_rows_by};
 
 /// Everything [`visible_rows`] needs, gathered from the world.
 ///
@@ -43,7 +43,21 @@ pub struct TreeQuery<'w, 's> {
 
 impl TreeQuery<'_, '_> {
     /// The visible rows of the tree `id`, given `state` and `query`.
+    ///
+    /// Siblings sort by [`groups_first_then_name`]. Use
+    /// [`rows_by`](Self::rows_by) for any other order.
     pub fn rows(&self, id: &TreeId, state: &TreeState, query: &str) -> Vec<VisibleRow> {
+        self.rows_by(id, state, query, &groups_first_then_name)
+    }
+
+    /// [`rows`](Self::rows), with the sibling order chosen by the caller.
+    pub fn rows_by(
+        &self,
+        id: &TreeId,
+        state: &TreeState,
+        query: &str,
+        order: RowOrder<'_>,
+    ) -> Vec<VisibleRow> {
         let nodes: Vec<TreeNode<'_>> = self
             .items
             .iter()
@@ -56,7 +70,7 @@ impl TreeQuery<'_, '_> {
                 default_open,
             })
             .collect();
-        visible_rows(&nodes, state, query)
+        visible_rows_by(&nodes, state, query, order)
     }
 
     /// Whether any item belongs to the tree `id`.

@@ -78,4 +78,6 @@ pub use filter::{FilterNode, matches, surviving};
 pub use item::{DefaultOpen, GroupId, ParentGroup, TreeId, TreeItem, TreeName};
 pub use query::TreeQuery;
 pub use state::{FORMAT_VERSION, TreeState};
-pub use visible::{TreeNode, VisibleRow, visible_rows};
+pub use visible::{
+    RowOrder, TreeNode, VisibleRow, groups_first_then_name, visible_rows, visible_rows_by,
+};

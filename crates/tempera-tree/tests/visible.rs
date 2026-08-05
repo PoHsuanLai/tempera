@@ -4,7 +4,9 @@
 //! is most of the argument for the flat-list model.
 
 use bevy::prelude::Entity;
-use tempera_tree::{GroupId, TreeNode, TreeState, VisibleRow, visible_rows};
+use tempera_tree::{
+    GroupId, TreeNode, TreeState, VisibleRow, groups_first_then_name, visible_rows, visible_rows_by,
+};
 
 /// A fixture row before its borrows are taken.
 struct Row {
@@ -285,4 +287,86 @@ fn siblings_at_depth_three_keep_their_own_depth() {
         shape(&rows, &out),
         ["a", "  b", "    c", "      deep", "  shallow", "root-leaf"]
     );
+}
+
+// ---------------------------------------------------------------------------
+// Sibling order is the caller's
+// ---------------------------------------------------------------------------
+
+/// Reverse-alphabetical, ignoring the group/leaf split entirely — deliberately
+/// nothing like the default, so a comparator that is quietly ignored cannot
+/// coincide with the right answer.
+fn by_name_descending(a: &TreeNode<'_>, b: &TreeNode<'_>) -> std::cmp::Ordering {
+    b.name.to_lowercase().cmp(&a.name.to_lowercase())
+}
+
+#[test]
+fn a_caller_can_choose_the_sibling_order() {
+    // The property `visible_rows_by` exists for. Before it, a host wanting a
+    // different order had to prefix its names — visible to the user *and*
+    // matched by the search query.
+    let rows = [leaf("alpha", None), leaf("beta", None), leaf("gamma", None)];
+    let out = visible_rows_by(
+        &nodes(&rows),
+        &TreeState::default(),
+        "",
+        &by_name_descending,
+    );
+    assert_eq!(shape(&rows, &out), ["gamma", "beta", "alpha"]);
+}
+
+#[test]
+fn the_order_applies_inside_a_group_too() {
+    // Not just at the roots. A comparator that only reached the top level would
+    // pass the test above and still leave every group's contents in the default
+    // order, which is the half nobody would notice until a deep tree.
+    let rows = [
+        group("SAMPLES", "samples", None, true),
+        leaf("alpha", Some("samples")),
+        leaf("beta", Some("samples")),
+    ];
+    let out = visible_rows_by(
+        &nodes(&rows),
+        &TreeState::default(),
+        "",
+        &by_name_descending,
+    );
+    assert_eq!(shape(&rows, &out), ["SAMPLES", "  beta", "  alpha"]);
+}
+
+#[test]
+fn a_comparator_cannot_move_a_child_out_of_its_group() {
+    // The bound on what a caller can do: order is applied *within* one parent,
+    // so the hierarchy is not negotiable. A comparator that sorted a leaf above
+    // its own group would otherwise produce a row whose depth contradicts its
+    // position.
+    let rows = [group("ZZZ", "zzz", None, true), leaf("aaa", Some("zzz"))];
+    let out = visible_rows_by(
+        &nodes(&rows),
+        &TreeState::default(),
+        "",
+        &by_name_descending,
+    );
+    assert_eq!(
+        shape(&rows, &out),
+        ["ZZZ", "  aaa"],
+        "a child must stay under its parent whatever the comparator says"
+    );
+}
+
+#[test]
+fn the_default_is_still_groups_first_then_name() {
+    // `visible_rows` delegates now, so this pins that the delegation kept the
+    // old policy rather than silently adopting a new one. Every existing call
+    // site depends on it.
+    let rows = [leaf("aaa", None), group("zzz", "zzz", None, false)];
+    let by_default = visible_rows(&nodes(&rows), &TreeState::default(), "");
+    let explicit = visible_rows_by(
+        &nodes(&rows),
+        &TreeState::default(),
+        "",
+        &groups_first_then_name,
+    );
+    assert_eq!(shape(&rows, &by_default), ["zzz", "aaa"]);
+    assert_eq!(shape(&rows, &by_default), shape(&rows, &explicit));
 }
