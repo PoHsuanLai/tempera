@@ -101,6 +101,7 @@ pub mod page;
 pub mod page_strip;
 pub mod persist;
 pub mod plugin;
+pub mod boundary;
 pub mod registry;
 pub mod resize;
 pub mod section;
@@ -116,6 +117,7 @@ pub use node::{
 pub use page::{ActivePage, Page, PageIcon, PageId, PageLabel, PageOrder, page_is_active};
 pub use page_strip::{PageChip, PageStrip, PageStripStyle};
 pub use plugin::TemperaDockPlugin;
+pub use boundary::{Boundaries, declare_pane_boundaries};
 pub use registry::{PaneRegistry, pane_exists};
 pub use resize::{DividerStyle, redistribute_flex};
 pub use section::{

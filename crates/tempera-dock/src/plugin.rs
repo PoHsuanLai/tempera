@@ -33,6 +33,7 @@ impl Plugin for TemperaDockPlugin {
         // No page state is initialized here: `ActivePage` lives on whichever
         // pane holds pages, so an app with none pays nothing.
         app.init_resource::<PaneRegistry>()
+            .init_resource::<crate::boundary::Boundaries>()
             .init_resource::<RebuildRequested>()
             .init_resource::<DividerStyle>()
             .init_resource::<crate::window_chrome::WindowChromeInset>();
@@ -46,6 +47,16 @@ impl Plugin for TemperaDockPlugin {
         // The build runs in `Update` rather than `Startup` because it is the
         // same code path that reconciles later changes — a separate startup
         // path would be a second implementation to keep in step.
+        // Boundaries are read from `ComputedNode`, so they are declared in
+        // `PostUpdate` after bevy's layout has run. In `Update` they would
+        // report the *previous* frame's geometry, which is one frame of lag on
+        // anything anchored to a seam — visible as chrome trailing a divider
+        // drag.
+        app.add_systems(
+            PostUpdate,
+            crate::boundary::declare_pane_boundaries.after(bevy::ui::UiSystems::Layout),
+        );
+
         app.add_systems(Update, build_dock.in_set(DockBuildSet))
             .add_systems(
                 Update,
