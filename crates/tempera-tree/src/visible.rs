@@ -29,6 +29,7 @@
 //! and the offending item is dropped — never a panic, and never taking a
 //! sibling down with it.
 
+use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 
 use bevy::prelude::*;
@@ -79,16 +80,60 @@ pub struct VisibleRow {
     pub expanded: bool,
 }
 
+/// How two siblings sort against each other.
+///
+/// Applied within one parent only — the hierarchy decides everything above
+/// that, so a comparator cannot reorder a child out of its group or flatten
+/// the tree.
+///
+/// # Why this is a parameter and not a component
+///
+/// A `TreeOrder(i32)` on each item presumes the host knows its ordering when it
+/// *spawns*, and a browser does not: by name, by kind, by recency, by vendor
+/// are all reasonable and a user may switch between them at runtime. Re-writing
+/// a component on every item to re-sort would be a second copy of a fact the
+/// items already carry.
+///
+/// It also has to be a real choice rather than a convention, because the
+/// alternative a host is left with is prefixing names — which is visible to the
+/// user *and* to the search query.
+pub type RowOrder<'a> = &'a dyn Fn(&TreeNode<'_>, &TreeNode<'_>) -> Ordering;
+
+/// The default: groups before leaves, then case-insensitively by name.
+///
+/// Stable, so a rescan does not shuffle the list. This is the policy
+/// [`visible_rows`] applies, and it stays the crate's answer for a host with no
+/// opinion.
+pub fn groups_first_then_name(a: &TreeNode<'_>, b: &TreeNode<'_>) -> Ordering {
+    b.group
+        .is_some()
+        .cmp(&a.group.is_some())
+        .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+}
+
 /// The rows to draw, in order.
 ///
-/// Groups sort before leaves, then alphabetically case-insensitively — stable
-/// ordering, so a rescan does not shuffle the list.
+/// Siblings sort by [`groups_first_then_name`]. Use [`visible_rows_by`] for any
+/// other order.
 ///
 /// A live `query` **flattens without mutating state**: every group renders open
 /// for the duration, and clearing the query restores exactly the expansion the
 /// user had. Persisting a search's incidental expansion would silently rewrite
 /// a user's layout as a side effect of typing.
 pub fn visible_rows(nodes: &[TreeNode<'_>], state: &TreeState, query: &str) -> Vec<VisibleRow> {
+    visible_rows_by(nodes, state, query, &groups_first_then_name)
+}
+
+/// [`visible_rows`], with the sibling order chosen by the caller.
+///
+/// Everything else is identical — filtering, collapse, depth. Only the order
+/// within one parent changes.
+pub fn visible_rows_by(
+    nodes: &[TreeNode<'_>],
+    state: &TreeState,
+    query: &str,
+    order: RowOrder<'_>,
+) -> Vec<VisibleRow> {
     if nodes.is_empty() {
         return Vec::new();
     }
@@ -151,16 +196,12 @@ pub fn visible_rows(nodes: &[TreeNode<'_>], state: &TreeState, query: &str) -> V
         }
     }
 
-    let order = |a: &usize, b: &usize| {
-        let (a, b) = (&nodes[*a], &nodes[*b]);
-        b.group
-            .is_some()
-            .cmp(&a.group.is_some())
-            .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
-    };
-    roots.sort_by(order);
+    // Indices into `nodes`, so the caller's comparator sees the nodes rather
+    // than positions it has no way to interpret.
+    let by_index = |a: &usize, b: &usize| order(&nodes[*a], &nodes[*b]);
+    roots.sort_by(by_index);
     for siblings in children_of.values_mut() {
-        siblings.sort_by(order);
+        siblings.sort_by(by_index);
     }
 
     let searching = !query.trim().is_empty();

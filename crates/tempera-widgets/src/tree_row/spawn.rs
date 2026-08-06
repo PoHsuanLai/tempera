@@ -99,6 +99,7 @@ pub struct TreeRowSpec {
     depth: u16,
     chevron: Option<ChevronState>,
     header: bool,
+    dimmed: bool,
 }
 
 impl TreeRowSpec {
@@ -157,7 +158,37 @@ impl TreeRowSpec {
         self.header = true;
         self
     }
+
+    /// Render receded: present and readable, plainly not usable.
+    ///
+    /// For a row a host is deliberately still showing but the user cannot act
+    /// on — a plugin a scan blacklisted, a sample whose file has gone, a device
+    /// that unplugged. The case that argues against simply hiding such a row is
+    /// the blacklist: `tutti-plugin`'s catalog docs call an un-blacklist
+    /// affordance "not optional", and a user cannot un-blacklist a row that is
+    /// not there.
+    ///
+    /// Dims **every** part of the row — label, suffix and icon — with
+    /// [`ColorPalette::toward`] against the surface behind it. All three,
+    /// because a full-strength glyph beside receded text reads as a rendering
+    /// fault rather than as a state. `toward` rather than a fixed grey so it
+    /// holds in both themes without the caller choosing.
+    ///
+    /// Composes with [`header`](Self::header): a group whose contents are all
+    /// unavailable is still a header, just a dim one.
+    #[must_use]
+    pub fn dimmed(mut self) -> Self {
+        self.dimmed = true;
+        self
+    }
 }
+
+/// How far a dimmed row travels toward the surface behind it.
+///
+/// Half. Far enough to read as unavailable at a glance, near enough that the
+/// label is still legible — which is the entire point of dimming rather than
+/// hiding. A larger value starts to be indistinguishable from an empty row.
+const DIM_AMOUNT: f32 = 0.5;
 
 /// Spawn a row. The caller parents it and attaches its own behaviour.
 ///
@@ -167,6 +198,17 @@ impl TreeRowSpec {
 pub fn spawn_tree_row(commands: &mut Commands, style: &TreeRowStyle, spec: TreeRowSpec) -> Entity {
     let tokens = &style.tokens;
     let palette = &style.palette;
+
+    // The surface a dimmed part recedes toward. `background` rather than the
+    // row's own fill, because a resting row has none — `repaint_rows` writes
+    // `Color::NONE` to every non-hovered row, so the page is what shows through.
+    let dim = |color: Color| {
+        if spec.dimmed {
+            ColorPalette::toward(color, palette.background, DIM_AMOUNT)
+        } else {
+            color
+        }
+    };
 
     let row = commands
         .spawn((
@@ -224,7 +266,7 @@ pub fn spawn_tree_row(commands: &mut Commands, style: &TreeRowStyle, spec: TreeR
     if let Some(icon) = spec.icon {
         commands.spawn((
             UiSvg(icon),
-            SvgColor(spec.icon_tint.unwrap_or(palette.muted_foreground)),
+            SvgColor(dim(spec.icon_tint.unwrap_or(palette.muted_foreground))),
             Node {
                 width: Val::Px(tokens.icon_size),
                 height: Val::Px(tokens.icon_size),
@@ -236,11 +278,11 @@ pub fn spawn_tree_row(commands: &mut Commands, style: &TreeRowStyle, spec: TreeR
         ));
     }
 
-    let label_color = if spec.header {
+    let label_color = dim(if spec.header {
         palette.foreground
     } else {
         palette.muted_foreground
-    };
+    });
     commands.spawn((
         TreeRowLabel,
         Text::new(truncate(&spec.label, tokens.label_max_chars)),
@@ -263,7 +305,7 @@ pub fn spawn_tree_row(commands: &mut Commands, style: &TreeRowStyle, spec: TreeR
             TreeRowSuffix,
             Text::new(suffix),
             style.font.text_font(style.typography.xxs),
-            TextColor(palette.muted_foreground),
+            TextColor(dim(palette.muted_foreground)),
             TextLayout {
                 linebreak: LineBreak::NoWrap,
                 ..default()
